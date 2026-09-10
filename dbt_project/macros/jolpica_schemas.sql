@@ -71,3 +71,29 @@ array<struct<season:string,round:string,url:string,raceName:string,
 array<struct<driverId:string,permanentNumber:string,code:string,url:string,
              givenName:string,familyName:string,dateOfBirth:string,nationality:string>>
 {%- endmacro %}
+
+
+{% macro jolpica_driver_standings_schema() -%}
+array<struct<season:string,round:string,
+  DriverStandings:array<struct<position:string,positionText:string,points:string,wins:string,
+    {{ jolpica_driver_schema() }},
+    Constructors:array<struct<constructorId:string,url:string,name:string,nationality:string>>>>>>
+{%- endmacro %}
+
+
+{% macro jolpica_constructor_standings_schema() -%}
+array<struct<season:string,round:string,
+  ConstructorStandings:array<struct<position:string,positionText:string,points:string,wins:string,
+    {{ jolpica_constructor_schema() }}>>>>
+{%- endmacro %}
+
+
+{% macro jolpica_sprint_schema() -%}
+array<struct<season:string,round:string,url:string,raceName:string,
+  {{ jolpica_circuit_schema() }},
+  date:string,time:string,
+  SprintResults:array<struct<number:string,position:string,positionText:string,points:string,
+    {{ jolpica_driver_schema() }},
+    {{ jolpica_constructor_schema() }},
+    grid:string,laps:string,status:string>>>>
+{%- endmacro %}

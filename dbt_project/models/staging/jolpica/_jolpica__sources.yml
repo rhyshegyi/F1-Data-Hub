@@ -51,6 +51,41 @@ sources:
             warn_after: {count: 10, period: day}
             error_after: {count: 30, period: day}
 
+      - name: raw_jolpica_driver_standings
+        description: >
+          Final drivers' championship classification per season, taken from the
+          source rather than derived. Between 1950 and 1990 only a driver's best
+          N results counted, so summing points scored gives the wrong champion:
+          Prost outscored Senna in 1988 and Hill outscored Surtees in 1964, yet
+          neither won the title.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_constructor_standings
+        description: >
+          Final constructors' championship classification per season. The
+          constructors' title did not exist before 1958, so earlier seasons are
+          recorded as a zero-row load.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_sprint_results
+        description: >
+          Sprint race results, 2021 onwards. Sprints award championship points,
+          so they are needed for points scored to agree with the published
+          standings.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
       - name: raw_jolpica_load_state
         description: >
           Ingestion watermarks -- control state, not data. Records which

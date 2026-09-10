@@ -18,15 +18,23 @@ from .config import first_season
 class Endpoint:
     """One API path and the raw table its pages land in.
 
+    `path` is the API path segment; `name` is what the watermark and the logs
+    call it. They differ only where the API uses camelCase, so that the rest of
+    the project can stay in snake_case.
+
     `first_season` records when the source actually starts carrying data.
     Requesting an earlier season returns a valid, empty response rather than an
-    error, but skipping those requests saves a few hundred calls against an
-    hourly budget the backfill is already close to.
+    error, but skipping those requests saves calls against an hourly budget.
     """
 
-    name: str
+    path: str
     table: str
     first_season: int | None = None
+    name: str = ""
+
+    def __post_init__(self):
+        if not self.name:
+            object.__setattr__(self, "name", self.path)
 
 
 ENDPOINTS: tuple[Endpoint, ...] = (
@@ -34,6 +42,21 @@ ENDPOINTS: tuple[Endpoint, ...] = (
     Endpoint("results", "raw_jolpica_results"),
     Endpoint("qualifying", "raw_jolpica_qualifying", first_season=1994),
     Endpoint("drivers", "raw_jolpica_drivers"),
+    # Final championship classifications, taken from the source rather than
+    # derived. Between 1950 and 1990 only a driver's best N results counted,
+    # so summing points scored gives the wrong champion -- Prost outscored
+    # Senna in 1988, and Hill outscored Surtees in 1964, yet neither won.
+    Endpoint("driverStandings", "raw_jolpica_driver_standings", name="driver_standings"),
+    # The constructors' championship did not exist until 1958.
+    Endpoint(
+        "constructorStandings", "raw_jolpica_constructor_standings",
+        name="constructor_standings", first_season=1958,
+    ),
+    # Sprint races, from 2021. Originally left out as YAGNI, which the data
+    # disproved: sprints award championship points, so without them the points
+    # a driver is shown to have scored disagrees with the published standings
+    # for every season from 2021 on.
+    Endpoint("sprint", "raw_jolpica_sprint_results", first_season=2021),
 )
 
 BY_NAME = {endpoint.name: endpoint for endpoint in ENDPOINTS}

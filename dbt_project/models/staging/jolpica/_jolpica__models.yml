@@ -122,3 +122,92 @@ models:
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [season, driver_id]
+
+  - name: stg_jolpica__driver_standings
+    description: >
+      One row per driver per season: the final drivers' championship
+      classification as published, not recomputed from results.
+
+      Championship points and points scored are different numbers before 1991,
+      when only a driver's best N results counted toward the title. Use this
+      model for anything that ranks drivers in a championship; use
+      stg_jolpica__results for anything about points actually scored in a race.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: championship_position
+        description: >
+          Final classification, 1 being the champion. Null where the entrant has
+          no classified position: 1,463 rows where the driver scored no points
+          and the source records '-', and one 1997 row where Michael Schumacher
+          was disqualified from the championship for the collision with
+          Villeneuve at Jerez, recorded as 'D'. Not null-tested for that reason
+          -- see championship_position_text, which is always populated.
+      - name: championship_position_text
+        description: >
+          Classification as published: a number, '-' for unclassified, or 'D'
+          for a disqualification from the championship.
+        data_tests: [not_null]
+      - name: championship_points
+        description: >
+          Points counting toward the title. Not the sum of points scored in
+          each race for seasons between 1950 and 1990.
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+      - name: constructor_ids
+        description: >
+          Constructors the driver represented that season, as an array. A driver
+          who changed teams mid-season has more than one; exploding them here
+          would break the grain.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, driver_id]
+
+  - name: stg_jolpica__constructor_standings
+    description: >
+      One row per constructor per season: the final constructors' championship
+      classification. Begins in 1958 -- the title did not exist for the first
+      eight seasons of the world championship.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: championship_position
+        description: >
+          Final classification. Null where the entrant has no classified
+          position: 211 rows where the constructor scored no points, and one
+          2007 row where McLaren was excluded from the constructors'
+          championship over the spying scandal, recorded as 'E'.
+      - name: championship_position_text
+        description: >
+          Classification as published: a number, '-' for unclassified, or 'E'
+          for an exclusion from the championship.
+        data_tests: [not_null]
+      - name: championship_points
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, constructor_id]
+
+  - name: stg_jolpica__sprint_results
+    description: >
+      One row per driver per sprint race, 2021 onwards. Separate from
+      stg_jolpica__results because a sprint is its own session with its own
+      result; merging them would make "how did this driver finish" ambiguous.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: points
+        description: Championship points awarded for the sprint.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id]

@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: int_results_joined_to_qualifying
+    description: >
+      Race results with race context and, from 1994 onwards, the driver's
+      qualifying session. One row per driver per car per race -- the results
+      grain, which qualifying cannot fan out because it has at most one row per
+      driver per race.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: race_name
+        description: >
+          Joined from stg_jolpica__races, not taken from the results payload --
+          a race can straddle two raw pages there.
+        data_tests: [not_null]
+      - name: was_classified
+        description: >
+          Whether the driver was classified. A retirement still carries a
+          numeric finish_position, so position alone cannot answer this.
+        data_tests: [not_null]
+      - name: positions_gained
+        description: >
+          Grid position minus finish position; positive means places gained.
+          Null rather than zero when either end is unknown, when the driver
+          started from the pit lane (grid 0), or when they were not classified.
+      - name: grid_penalty_positions
+        description: >
+          Grid slots lost between qualifying and the start. Null before 1994,
+          where there is no qualifying data to compare against.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id, car_number]
+
+  - name: int_driver_form
+    description: >
+      Rolling and career-to-date form per driver per race. Shared drives are
+      collapsed first, so a driver who took over a second car counts as one
+      race entry rather than two.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: points_last_5_races
+        description: >
+          Points over this race and the four before it. Inclusive of the current
+          race -- do not use for prediction.
+      - name: points_in_previous_5_races
+        description: >
+          Points over the five races before this one, excluding it. This is the
+          one to use for anything predictive; the inclusive window leaks the
+          result being predicted.
+      - name: cars_driven
+        description: >
+          Number of cars the driver was classified in for this race. Greater
+          than one only for 1950s and 1960s shared drives.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id]

@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: race_results
+    description: >
+      Wide, denormalized race results, 1950 to present -- one row per driver per
+      car per race. The table the dashboard queries directly, so that the BI tool
+      never has to join and a dashboard change never becomes a modelling change.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: driver_name
+        description: >
+          Joined from the season's driver list. Not null anywhere in the source
+          as loaded -- if this ever fails, a driver appeared in results without
+          appearing in that season's drivers endpoint.
+        data_tests: [not_null]
+      - name: is_win
+        description: True for a race winner. Null where the driver was unclassified.
+      - name: is_podium
+        description: True for a top-three finish.
+      - name: scored_points
+        description: True where the driver scored any championship points.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id, car_number]
+
+  - name: driver_standings
+    description: >
+      Final drivers' championship standings per season, widened with that
+      season's race statistics. One row per driver per season, 1950 to present.
+
+      Exposes championship_points (as published) and points_scored (summed from
+      results) side by side, with points_dropped as the difference. Before 1991
+      only a driver's best N results counted toward the title, so these diverge;
+      showing both makes that visible instead of silently picking one.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: driver_name
+        data_tests: [not_null]
+      - name: championship_points
+        description: Points counting toward the title, as published.
+        data_tests: [not_null]
+      - name: points_scored
+        description: >
+          Points actually scored across the season, races and sprints combined.
+          Sprints are included deliberately -- leaving them out made this
+          disagree with the published standings for every season from 2021.
+      - name: race_points_scored
+        description: Points from races only.
+      - name: sprint_points_scored
+        description: Points from sprint races. Zero before 2021.
+      - name: points_dropped
+        description: >
+          championship_points minus points_scored. Zero from 1991 onwards, once
+          dropped-score rules ended; negative before that, where a driver's
+          worst results were discarded from their championship total.
+      - name: is_champion
+        description: >
+          True for the championship winner. Null where the driver has no
+          classified position, which includes Schumacher in 1997.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, driver_id]

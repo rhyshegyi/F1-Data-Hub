@@ -3,7 +3,7 @@
 import pytest
 from conftest import FakeCursor, FakeResponse, FakeTransport, RecordingSleep, fixture_text
 
-from ingestion.endpoints import Endpoint
+from ingestion.endpoints import Endpoint, covering
 from ingestion.jolpica import JolpicaError
 from ingestion.pipeline import latest_completed_race, load_season, run_seasons
 from ingestion.state import Watermark
@@ -66,14 +66,13 @@ def test_one_failing_endpoint_does_not_sink_the_whole_run():
     )
 
     assert "qualifying" in failures[0]
-    assert len(loaded) == 3, "races, results and drivers must still have loaded"
+    assert len(loaded) == len(covering(2024)) - 1, "every other endpoint must still load"
 
 
 def test_seasons_already_watermarked_are_skipped():
     cursor = FakeCursor()
     existing = {
-        (name, 2024): Watermark(name, 2024, 24, 1)
-        for name in ("races", "results", "qualifying", "drivers")
+        (e.name, 2024): Watermark(e.name, 2024, 24, 1) for e in covering(2024)
     }
 
     loaded, failures = run_seasons(
@@ -115,8 +114,8 @@ def test_a_quiet_week_writes_absolutely_nothing():
     including the ones with no rounds of their own."""
     cursor = FakeCursor()
     existing = {
-        (name, 2026): Watermark(name, 2026, last_round=13, total_rows=1)
-        for name in ("races", "results", "qualifying", "drivers")
+        (e.name, 2026): Watermark(e.name, 2026, last_round=13, total_rows=1)
+        for e in covering(2026)
     }
 
     loaded, failures = run_seasons(
@@ -127,3 +126,18 @@ def test_a_quiet_week_writes_absolutely_nothing():
 
     assert loaded == [] and failures == []
     assert not [s for s in cursor.statements if s.startswith(("INSERT", "DELETE"))]
+
+
+def test_the_request_url_uses_the_api_path_not_the_snake_case_name():
+    """`driverStandings` is the API path; `driver_standings` is what the rest of
+    the project calls it. Requesting the latter returns nothing."""
+    cursor = FakeCursor()
+    transport = FakeTransport(FakeResponse(fixture_text("drivers_2024_offset0.json")))
+
+    load_season(
+        cursor, "workspace.f1_raw",
+        Endpoint("driverStandings", "raw_jolpica_driver_standings", name="driver_standings"),
+        2024, transport=transport, sleep=RecordingSleep(),
+    )
+
+    assert "/driverStandings/" in transport.urls[0]

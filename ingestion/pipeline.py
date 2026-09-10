@@ -62,7 +62,7 @@ def load_season(
     table = f"{schema}.{endpoint.table}"
     pages = list(
         fetch_pages(
-            endpoint.name, season, transport=transport, sleep=sleep, url_base=url_base
+            endpoint.path, season, transport=transport, sleep=sleep, url_base=url_base
         )
     )
 
