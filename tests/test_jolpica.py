@@ -111,3 +111,28 @@ def test_max_round_reads_the_latest_round_in_a_payload():
 def test_max_round_is_none_when_the_payload_has_no_races():
     """The drivers endpoint is season-scoped, not round-scoped."""
     assert max_round(fixture_text("drivers_2024_offset0.json")) is None
+
+
+def test_cloudflare_edge_errors_are_retried():
+    """Jolpica sits behind Cloudflare, which returns 520-524 for transient
+    origin problems. A real backfill lost a season to an unretried 520."""
+    sleep = RecordingSleep()
+    transport = FakeTransport([
+        FakeResponse("", status_code=520),
+        FakeResponse(envelope(1, 0, 100)),
+    ])
+
+    pages = list(fetch_pages("results", 2019, transport=transport, sleep=sleep))
+
+    assert len(pages) == 1
+    assert sleep.delays, "must have backed off rather than giving up"
+
+
+def test_a_genuine_client_error_still_is_not_retried():
+    """Widening the retryable set must not turn 4xx into a retry loop."""
+    transport = FakeTransport(FakeResponse("gone", status_code=410))
+
+    with pytest.raises(JolpicaError):
+        list(fetch_pages("results", 2019, transport=transport, sleep=RecordingSleep()))
+
+    assert len(transport.urls) == 1

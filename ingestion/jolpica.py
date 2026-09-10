@@ -32,7 +32,10 @@ log = logging.getLogger(__name__)
 THROTTLE_SECONDS = 0.34
 
 MAX_ATTEMPTS = 5
-RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+# 5xx from the origin, plus Cloudflare's own edge errors (520-524), which
+# Jolpica sits behind. A real backfill lost a season to an unretried 520.
+RETRYABLE_STATUS = {429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
 
 
 class JolpicaError(RuntimeError):
