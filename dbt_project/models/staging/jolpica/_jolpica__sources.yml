@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: jolpica_raw
+    description: >
+      Raw landing tables written by the ingestion scripts in `ingestion/`.
+      Each row is one verbatim Jolpica API response page -- the `payload`
+      column holds the JSON exactly as returned, untransformed.
+
+      Pagination is over result rows rather than races, so a single page can
+      span several rounds. That is why the grain here is (season, page_offset)
+      and not (season, round). Staging models parse and flatten; nothing in
+      this layer does.
+    database: "{{ env_var('DATABRICKS_CATALOG', 'workspace') }}"
+    schema: "{{ env_var('DATABRICKS_RAW_SCHEMA', 'f1_raw') }}"
+
+    tables:
+      - name: raw_jolpica_races
+        description: Race calendar and circuit details, one page per row.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_results
+        description: >
+          Finishing results per driver. Largest endpoint -- roughly 480 rows
+          per modern season, so around five pages each.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_qualifying
+        description: >
+          Qualifying session times. Only available from 1994 onwards; earlier
+          seasons are recorded as a zero-row load rather than an error.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_drivers
+        description: Driver reference data per season.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_load_state
+        description: >
+          Ingestion watermarks -- control state, not data. Records which
+          (endpoint, season) pairs have been loaded and the latest round seen,
+          so the scheduled run can decide whether there is anything to do
+          without parsing payload JSON in SQL.

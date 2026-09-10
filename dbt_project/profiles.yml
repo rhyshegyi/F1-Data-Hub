@@ -1,0 +1,17 @@
+# Safe to commit: every secret is read from the environment at runtime.
+# Copy ../.env.example to ../.env and fill it in (see README.md).
+#
+# The placeholder defaults exist so `dbt deps` and `dbt parse` work offline
+# with no credentials. `dbt debug` will fail until the real values are set.
+
+f1_data_hub:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST', 'placeholder.cloud.databricks.com') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/placeholder') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN', 'placeholder') }}"
+      catalog: "{{ env_var('DATABRICKS_CATALOG', 'workspace') }}"
+      schema: "{{ env_var('DATABRICKS_SCHEMA', 'f1') }}"
+      threads: 4

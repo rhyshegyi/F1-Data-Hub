@@ -1,0 +1,56 @@
+name: f1_data_hub
+version: 0.1.0
+config-version: 2
+
+profile: f1_data_hub
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  # ---------------------------------------------------------------------
+  # Source coverage.
+  #
+  # The ingestion scripts read these too (see ingestion/config.py), so the
+  # pipeline and the models can never disagree about what the raw layer is
+  # supposed to contain.
+  # ---------------------------------------------------------------------
+
+  # Ergast/Jolpica history begins with the first world championship season.
+  first_season: 1950
+
+  # Jolpica is the actively maintained successor to Ergast, which shut down
+  # in 2024. The path keeps Ergast's shape so the two stay compatible.
+  jolpica_base_url: "https://api.jolpi.ca/ergast/f1"
+
+  # Jolpica hard-caps `limit` at 100 -- asking for more silently returns 100.
+  jolpica_page_limit: 100
+
+models:
+  f1_data_hub:
+    +persist_docs:
+      relation: true
+      columns: true
+
+    staging:
+      +materialized: view
+      +schema: staging
+
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  f1_data_hub:
+    +schema: seeds

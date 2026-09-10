@@ -1,0 +1,28 @@
+[project]
+name = "f1-data-hub"
+version = "0.1.0"
+description = "ELT pipeline and Power BI dashboard for Formula 1 race data, sourced from the Jolpica API."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "dbt-core>=1.9,<2.0",
+    "dbt-databricks>=1.9,<2.0",
+    "databricks-sql-connector>=3.4",
+    "requests>=2.32",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
