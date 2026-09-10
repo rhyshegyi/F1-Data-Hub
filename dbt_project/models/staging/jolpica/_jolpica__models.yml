@@ -1,0 +1,124 @@
+version: 2
+
+models:
+  - name: stg_jolpica__races
+    description: >
+      One row per race, 1950 to present. Calendar, circuit and the scheduled
+      start of each session on the weekend.
+    columns:
+      - name: season
+        description: Championship season the race belongs to.
+        data_tests: [not_null]
+      - name: round
+        description: Round number within the season, 1-based.
+        data_tests: [not_null]
+      - name: race_date
+        description: Date the race was held.
+        data_tests: [not_null]
+      - name: race_start_utc
+        description: >
+          Scheduled race start. Null before roughly 1960 -- the source carries a
+          date but no time for early seasons.
+      - name: circuit_id
+        description: Stable circuit slug, e.g. `monza`.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round]
+
+  - name: stg_jolpica__results
+    description: >
+      One row per driver per car per race.
+
+      Not per driver per race: car sharing was legal until 1958 and drivers took
+      over teammates' cars into the mid-1960s, so a driver can hold two result
+      rows for one race. At Monza in 1950 Ascari retired car 16 with engine
+      failure, took over car 48 and finished second. 83 such pairs exist, none
+      after 1964. The reverse also happens -- 130 cars were shared by two
+      drivers -- so neither the driver nor the car alone identifies a row.
+
+      Race-level attributes are deliberately absent here: a race can straddle
+      two raw pages, so those belong to stg_jolpica__races.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        description: Stable driver slug, e.g. `max_verstappen`.
+        data_tests: [not_null]
+      - name: constructor_id
+        description: Stable constructor slug, e.g. `red_bull`.
+        data_tests: [not_null]
+      - name: car_number
+        description: >
+          Car number, part of the grain because of shared drives. Null for six
+          rows between 1961 and 1963 where the source records the string 'None'.
+          Warns rather than fails: it is a known defect in the source, and the
+          raw layer still holds the original, but it should stay visible in
+          every build rather than being quietly tolerated.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: finish_position
+        description: Numeric finishing order, including retirements.
+      - name: finish_position_text
+        description: >
+          Classification code where one applies: R retired, D disqualified,
+          E excluded, W withdrawn, N not classified. Otherwise the position.
+        data_tests: [not_null]
+      - name: points
+        description: >
+          Championship points. Double rather than integer -- shortened 1950s
+          races awarded half points, and shared drives split them further.
+        data_tests: [not_null]
+      - name: fastest_lap_seconds
+        description: >
+          Fastest lap in seconds, parsed from the source's `M:SS.mmm` string.
+          Null before roughly 2004, when the source began recording it.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id, car_number]
+
+  - name: stg_jolpica__qualifying
+    description: >
+      One row per driver per qualifying session, 1994 onwards. Earlier seasons
+      have no qualifying data in the source at all.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: qualifying_position
+        description: Grid order set by qualifying, before any penalties.
+      - name: q1_seconds
+        description: >
+          Q1 time in seconds. Null both for drivers who set no time and for the
+          pre-2006 formats, which recorded a position but no segment times.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, round, driver_id]
+
+  - name: stg_jolpica__drivers
+    description: >
+      One row per driver per season -- the grain the source publishes. A driver
+      spanning fifteen seasons appears fifteen times.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: full_name
+        data_tests: [not_null]
+      - name: driver_code
+        description: >
+          Three-letter broadcast code. Null for most of the sport's history --
+          codes only appear from the 1990s.
+      - name: permanent_number
+        description: Career number. Null before 2014, when they were introduced.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, driver_id]
