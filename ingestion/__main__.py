@@ -91,11 +91,17 @@ def main(argv: list[str] | None = None) -> int:
     current_season, current_round = latest_completed_race(transport=transport)
     log.info("Latest completed race: %s round %s", current_season, current_round)
 
+    dry_run = args.command == "backfill" and args.dry_run
+
     with connect(config) as connection, connection.cursor() as cursor:
-        ensure_schema(cursor, config.catalog, config.raw_schema)
         state_table = f"{schema}.{ddl.LOAD_STATE_TABLE}"
-        ensure_table(cursor, state_table, ddl.LOAD_STATE_DDL)
-        watermarks = read_watermarks(cursor, state_table)
+
+        # A dry run creates nothing -- not even the schema. An unreadable state
+        # table simply means nothing has been loaded yet.
+        if not dry_run:
+            ensure_schema(cursor, config.catalog, config.raw_schema)
+            ensure_table(cursor, state_table, ddl.LOAD_STATE_DDL)
+        watermarks = read_watermarks(cursor, state_table, missing_ok=dry_run)
 
         if args.command == "incremental":
             seasons = [current_season]
@@ -107,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         # Only the current season can gain rows; earlier seasons are settled.
         latest_round_by_season = {current_season: current_round}
 
-        if args.command == "backfill" and args.dry_run:
+        if dry_run:
             return _report_plan(seasons, watermarks, latest_round_by_season, force)
 
         loaded, failures = run_seasons(

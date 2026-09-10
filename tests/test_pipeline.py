@@ -94,3 +94,36 @@ def test_a_persistent_failure_raises_rather_than_watermarking():
             transport=FakeTransport(FakeResponse("", status_code=429)),
             sleep=RecordingSleep(),
         )
+
+
+def test_a_roundless_endpoint_records_the_round_the_load_was_current_as_of():
+    """`drivers` has no rounds of its own. Without borrowing the season's
+    current round it watermarks as None, and every scheduled run reloads it."""
+    cursor = FakeCursor()
+
+    watermark = load_season(
+        cursor, "workspace.f1_raw", Endpoint("drivers", "raw_jolpica_drivers"), 2026,
+        transport=transport_for("drivers_2024_offset0.json"), sleep=RecordingSleep(),
+        as_of_round=13,
+    )
+
+    assert watermark.last_round == 13
+
+
+def test_a_quiet_week_writes_absolutely_nothing():
+    """The scheduled run's whole justification. Every endpoint must skip,
+    including the ones with no rounds of their own."""
+    cursor = FakeCursor()
+    existing = {
+        (name, 2026): Watermark(name, 2026, last_round=13, total_rows=1)
+        for name in ("races", "results", "qualifying", "drivers")
+    }
+
+    loaded, failures = run_seasons(
+        cursor, "workspace.f1_raw", [2026], watermarks=existing,
+        transport=FakeTransport([]), sleep=RecordingSleep(),
+        latest_round_by_season={2026: 13},
+    )
+
+    assert loaded == [] and failures == []
+    assert not [s for s in cursor.statements if s.startswith(("INSERT", "DELETE"))]

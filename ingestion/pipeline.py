@@ -46,8 +46,15 @@ def load_season(
     transport: Callable[[str], object],
     sleep: Callable[[float], None] = time.sleep,
     url_base: str | None = None,
+    as_of_round: int | None = None,
 ) -> Watermark:
     """Fetch and land every page of one endpoint for one season.
+
+    `as_of_round` is the latest completed round in that season at the moment of
+    loading, supplied for the current season. It is what gets watermarked, in
+    preference to whatever rounds happen to appear in the payload: `drivers`
+    has no rounds at all and `races` lists rounds that have not been run yet,
+    so payload-derived rounds cannot answer "is this load still current?".
 
     Raises rather than watermarking if the fetch fails, so the season stays
     unloaded and a re-run resumes it.
@@ -62,11 +69,14 @@ def load_season(
     ensure_table(cursor, table, ddl.PAGE_DDL)
     replace_season(cursor, table, season, pages)
 
-    rounds = [r for r in (max_round(page.payload) for page in pages) if r is not None]
+    if as_of_round is None:
+        rounds = [r for r in (max_round(page.payload) for page in pages) if r is not None]
+        as_of_round = max(rounds) if rounds else None
+
     return Watermark(
         endpoint=endpoint.name,
         season=season,
-        last_round=max(rounds) if rounds else None,
+        last_round=as_of_round,
         total_rows=pages[0].total if pages else 0,
     )
 
@@ -111,6 +121,7 @@ def run_seasons(
                 watermark = load_season(
                     cursor, schema, endpoint, season,
                     transport=transport, sleep=sleep, url_base=url_base,
+                    as_of_round=latest_round_by_season.get(season),
                 )
             except JolpicaError as exc:
                 log.error("%s %s: FAILED -- %s", season, endpoint.name, exc)

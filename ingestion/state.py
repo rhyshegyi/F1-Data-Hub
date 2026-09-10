@@ -20,9 +20,21 @@ class Watermark:
     total_rows: int
 
 
-def read_watermarks(cursor, table: str) -> dict[tuple[str, int], Watermark]:
-    """Every recorded load, keyed by (endpoint, season)."""
-    cursor.execute(f"SELECT endpoint, season, last_round, total_rows FROM {table}")
+def read_watermarks(
+    cursor, table: str, *, missing_ok: bool = False
+) -> dict[tuple[str, int], Watermark]:
+    """Every recorded load, keyed by (endpoint, season).
+
+    `missing_ok` treats an unreadable table as "nothing loaded yet". It exists
+    for `--dry-run`, which must not create the table just to look at it. A real
+    run creates the table first, so there a failure to read it is genuine.
+    """
+    try:
+        cursor.execute(f"SELECT endpoint, season, last_round, total_rows FROM {table}")
+    except Exception:
+        if missing_ok:
+            return {}
+        raise
     return {
         (endpoint, int(season)): Watermark(
             endpoint=endpoint,

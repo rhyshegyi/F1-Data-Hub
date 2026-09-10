@@ -1,5 +1,6 @@
 """The skip-or-load decision that keeps the scheduled run cheap."""
 
+import pytest
 from conftest import FakeCursor
 
 from ingestion.state import Watermark, needs_load, read_watermarks
@@ -53,3 +54,29 @@ def test_watermarks_are_read_back_keyed_by_endpoint_and_season():
 
     assert watermarks[("results", 2024)].last_round == 24
     assert watermarks[("drivers", 2024)].last_round is None
+
+
+def test_missing_state_table_can_be_tolerated():
+    """`--dry-run` must not create anything, so it has to cope with reading
+    watermarks before the table exists."""
+
+    class ExplodingCursor:
+        def execute(self, statement, parameters=None):
+            raise RuntimeError("TABLE_OR_VIEW_NOT_FOUND")
+
+        def fetchall(self):
+            raise AssertionError("should never get here")
+
+    assert read_watermarks(ExplodingCursor(), "nope", missing_ok=True) == {}
+
+
+def test_a_missing_state_table_is_still_an_error_on_a_real_run():
+    """A real run creates the table first, so failing to read it is a genuine
+    problem and must not be silently swallowed."""
+
+    class ExplodingCursor:
+        def execute(self, statement, parameters=None):
+            raise RuntimeError("TABLE_OR_VIEW_NOT_FOUND")
+
+    with pytest.raises(RuntimeError):
+        read_watermarks(ExplodingCursor(), "nope")
