@@ -81,6 +81,13 @@ fact. Power BI would have two routes and would silently deactivate one.
 These are small, and they're what separates a considered model from a
 default one:
 
+- **Turn off Auto date/time.** *File* → *Options and settings* → *Options* →
+  *Current file* → *Data Load* → untick **Auto date/time**. Otherwise Power BI
+  quietly builds a hidden calendar table for every date column in the model
+  (race dates, start times, dates of birth). Those are the
+  `LocalDateTable_…` entries you'll see in refresh dialogs. They bloat the
+  file and add refresh work, and this report never uses them: races are
+  ordered by `race_id` and `round`, not by a calendar.
 - **Hide every key column on the fact tables** (`race_id`, `driver_id`,
   `constructor_id`, `season` on the facts). Right-click → *Hide in report
   view*. Report authors should slice by dimension attributes, not fact keys.
