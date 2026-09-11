@@ -1,0 +1,118 @@
+name: f1-pipeline
+
+# Keeps the Databricks warehouse current: Jolpica -> raw layer -> dbt.
+#
+# Why daily rather than weekly: races don't land on a fixed cadence. There are
+# back-to-back weekends, triple-headers, month-long summer breaks and a winter
+# off-season, so a weekly cron either misses races or runs for nothing.
+# Running daily and letting `ingestion incremental` decide is what makes the
+# schedule correct without knowing the calendar. On a quiet day it costs one
+# API call and one watermark read, and writes nothing.
+#
+# Why 07:37 and not 07:00: GitHub's cron is best-effort and queues hardest on
+# the hour. In fpl-squad-optimizer a daily 06:00 schedule produced zero runs,
+# and even odd-minute runs there start around five hours late. Nothing here
+# depends on exact timing. Races finish between roughly 06:00 UTC (Asia,
+# Australia) and 23:00 UTC (the Americas), so a daily run picks up any Sunday
+# race by Monday at the latest.
+#
+# Post-race penalties: stewards sometimes change results hours or days after
+# the flag. Every new race reloads the whole current season, so any correction
+# is picked up at the next race at the latest. To pick it up sooner, run this
+# workflow manually with `reload_season` set.
+#
+# GitHub disables scheduled workflows in public repositories after 60 days
+# without repository activity. If the warehouse stops updating over a quiet
+# stretch, re-enable the workflow from the Actions tab.
+on:
+  schedule:
+    - cron: "37 7 * * *"
+  workflow_dispatch:
+    inputs:
+      reload_season:
+        description: "Force-reload one season, e.g. 2026 after a post-race penalty. Leave blank for a normal run."
+        required: false
+        default: ""
+      run_dbt:
+        description: "Build the dbt models even if nothing new loaded, e.g. after changing a model."
+        type: boolean
+        default: false
+
+concurrency:
+  group: f1-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_CATALOG: workspace
+      DATABRICKS_SCHEMA: f1
+      DATABRICKS_RAW_SCHEMA: f1_raw
+      DBT_PROJECT_DIR: dbt_project
+      DBT_PROFILES_DIR: dbt_project
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to an exact patch: astral-sh/setup-uv publishes no floating
+      # `v10` major tag, so `@v10` fails to resolve. Same pin as
+      # fpl-squad-optimizer, where it is known to work.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Sync dependencies
+        run: uv sync --frozen --no-dev
+
+      # The season comes in through an environment variable, never straight
+      # into the script, so a workflow input can't inject shell commands.
+      - name: Ingest from Jolpica
+        id: ingest
+        env:
+          RELOAD_SEASON: ${{ inputs.reload_season }}
+        run: |
+          if [ -n "$RELOAD_SEASON" ]; then
+            uv run python -m ingestion --summary-json summary.json \
+              backfill --seasons "$RELOAD_SEASON" --force
+          else
+            uv run python -m ingestion --summary-json summary.json incremental
+          fi
+          echo "loaded=$(jq .loaded summary.json)" >> "$GITHUB_OUTPUT"
+
+      # Only when something new arrived. dbt build rebuilds every table and
+      # reruns every test, so running it on an unchanged warehouse would spend
+      # warehouse time to reproduce identical tables.
+      #
+      # A failing dbt test fails the job, which is the point: the standings
+      # reconciliation tests are the alarm if Jolpica publishes results and
+      # standings that disagree.
+      - name: Build and test dbt models
+        if: steps.ingest.outputs.loaded != '0' || inputs.run_dbt
+        run: |
+          uv run dbt deps
+          uv run dbt build
+
+      - name: Write run summary
+        if: always()
+        run: |
+          if [ -f summary.json ]; then
+            {
+              echo "### Ingestion"
+              echo '```json'
+              cat summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

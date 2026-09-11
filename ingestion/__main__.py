@@ -4,6 +4,7 @@
     uv run python -m ingestion backfill --seasons 2020-2026
     uv run python -m ingestion backfill --dry-run    # show the plan, write nothing
     uv run python -m ingestion incremental           # current season, if a race has run
+    uv run python -m ingestion --summary-json out.json incremental
 
 `backfill` is safe to re-run: seasons already recorded in the load-state table
 are skipped, so hitting Jolpica's hourly cap just means running it again.
@@ -12,8 +13,10 @@ are skipped, so hitting Jolpica's hourly cap just means running it again.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
+from pathlib import Path
 
 import requests
 
@@ -61,6 +64,27 @@ def parse_seasons(spec: str | None, current_season: int) -> list[int]:
     return list(range(start, end + 1))
 
 
+def write_summary(path, loaded, failures) -> None:
+    """Record what a run did, for whatever is orchestrating it.
+
+    The scheduled workflow reads `loaded` to decide whether the dbt models need
+    rebuilding: on a quiet day nothing loads, and there is no point paying for
+    a full build of unchanged data.
+    """
+    Path(path).write_text(
+        json.dumps(
+            {
+                "loaded": len(loaded),
+                "source_rows": sum(w.total_rows for w in loaded),
+                "endpoint_seasons": [f"{w.season} {w.endpoint}" for w in loaded],
+                "failures": list(failures),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ingestion")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -73,6 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("incremental", help="load the current season if a new race has run")
 
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "--summary-json", metavar="PATH",
+        help="also write a JSON summary of what was loaded (read by the scheduled workflow)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -129,6 +157,9 @@ def main(argv: list[str] | None = None) -> int:
 
     total_rows = sum(w.total_rows for w in loaded)
     log.info("Loaded %d endpoint-seasons (%d source rows)", len(loaded), total_rows)
+
+    if args.summary_json:
+        write_summary(args.summary_json, loaded, failures)
 
     if failures:
         log.warning("%d failure(s):", len(failures))
