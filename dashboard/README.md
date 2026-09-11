@@ -260,6 +260,21 @@ The pipeline keeps the warehouse up to date. To pull new races into the
 report, open the `.pbix` and click **Home → Refresh**. That's the whole
 refresh process in Desktop.
 
+### If refresh fails with "A cyclic reference was encountered during evaluation"
+
+The cause is most likely a **column or table description** in dbt, not the
+report. `persist_docs` writes every dbt description into Databricks as a
+comment, and the Databricks connector reads those comments. A description
+containing double quotes and a non-ASCII character (`"R01 · Bahrain Grand
+Prix"`) broke `dim_race` with exactly this error, even though its query was
+nothing but the connector's own navigation steps. Rewriting that one
+description in plain ASCII fixed it, with nothing else changed.
+
+`tests/test_dbt_docs.py` now fails on any persisted description containing
+double quotes or non-ASCII characters, so this shouldn't recur. The *data* is
+unaffected: values like `São Paulo` and the `·` in `race_label` load fine.
+Only the comments matter.
+
 ## 7. Before committing the `.pbix`
 
 Save it as `dashboard/f1_data_hub.pbix`, **but ask for it to be checked before
