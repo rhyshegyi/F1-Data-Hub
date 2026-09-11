@@ -1,71 +1,182 @@
 version: 2
 
+# A star schema shaped for Power BI: four dimensions, three facts.
+#
+# Every foreign key carries a relationships test. In Power BI a fact row whose
+# key is missing from its dimension doesn't error -- it quietly lands under a
+# "(Blank)" member and skews every total it touches. These tests are what stop
+# that happening unnoticed.
+
 models:
-  - name: race_results
+
+  # ---------------------------------------------------------------- dimensions
+
+  - name: dim_season
     description: >
-      Wide, denormalized race results, 1950 to present -- one row per driver per
-      car per race. The table the dashboard queries directly, so that the BI tool
-      never has to join and a dashboard change never becomes a modelling change.
+      One row per championship season, 1950 to present. The hub for a season
+      slicer: races reach it through dim_race, standings relate to it directly.
     columns:
       - name: season
-        data_tests: [not_null]
-      - name: round
-        data_tests: [not_null]
-      - name: driver_id
-        data_tests: [not_null]
-      - name: driver_name
+        data_tests: [unique, not_null]
+      - name: races_completed
+        description: Rounds with results. Below races_scheduled mid-season.
+      - name: is_dropped_scores_era
         description: >
-          Joined from the season's driver list. Not null anywhere in the source
-          as loaded -- if this ever fails, a driver appeared in results without
-          appearing in that season's drivers endpoint.
+          True up to 1990, when only a driver's best N results counted toward
+          the title -- the seasons where championship and scored points differ.
         data_tests: [not_null]
-      - name: is_win
-        description: True for a race winner. Null where the driver was unclassified.
+      - name: is_current_season
+        data_tests: [not_null]
+
+  - name: dim_race
+    description: >
+      One row per race on the calendar, including current-season rounds not yet
+      run. has_results separates the two.
+    columns:
+      - name: race_id
+        description: >
+          season * 100 + round, e.g. 202421. A single-column key because Power BI
+          relationships cannot join on two columns.
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season
+      - name: race_name
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+      - name: has_results
+        data_tests: [not_null]
+
+  - name: dim_driver
+    description: >
+      One row per driver across their career. Attributes take their most recent
+      value; code and permanent number take their most recent non-null value.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_name
+        data_tests: [not_null]
+      - name: first_season
+        data_tests: [not_null]
+
+  - name: dim_constructor
+    description: >
+      One row per constructor. Built from race results rather than standings,
+      because the constructors' title only began in 1958.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+
+  # --------------------------------------------------------------------- facts
+
+  - name: fct_race_results
+    description: >
+      One row per driver per car per race, 1950 to present. Keys and measures
+      only; descriptive attributes live in the dimensions.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_constructor')
+                field: constructor_id
+      - name: was_classified
+        data_tests: [not_null]
       - name: is_podium
-        description: True for a top-three finish.
-      - name: scored_points
-        description: True where the driver scored any championship points.
+        description: >
+          A classified top-three finish. Checked against classification, not
+          just position, so a retirement can never count.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id, car_number]
+          arguments:
+            combination_of_columns: [race_id, driver_id, car_number]
 
-  - name: driver_standings
+  - name: fct_points_by_round
     description: >
-      Final drivers' championship standings per season, widened with that
-      season's race statistics. One row per driver per season, 1950 to present.
+      One row per driver per race, race and sprint points combined, plus rolling
+      and career form. The source for the points-progression chart -- a running
+      sum over race results alone falls short from 2021 by every sprint point.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: total_points
+        description: race_points + sprint_points.
+        data_tests: [not_null]
+      - name: points_in_previous_5_races
+        description: >
+          Excludes the current race. The only form column safe for prediction;
+          points_last_5_races includes the race and leaks its result.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
 
-      Exposes championship_points (as published) and points_scored (summed from
-      results) side by side, with points_dropped as the difference. Before 1991
-      only a driver's best N results counted toward the title, so these diverge;
-      showing both makes that visible instead of silently picking one.
+  - name: fct_driver_standings
+    description: >
+      Final drivers' standings, one row per driver per season, widened with the
+      season's statistics. championship_points (as published) and points_scored
+      (races plus sprints) sit side by side, with points_dropped between them.
     columns:
       - name: season
-        data_tests: [not_null]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season
       - name: driver_id
-        data_tests: [not_null]
-      - name: driver_name
-        data_tests: [not_null]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
       - name: championship_points
-        description: Points counting toward the title, as published.
         data_tests: [not_null]
-      - name: points_scored
-        description: >
-          Points actually scored across the season, races and sprints combined.
-          Sprints are included deliberately -- leaving them out made this
-          disagree with the published standings for every season from 2021.
-      - name: race_points_scored
-        description: Points from races only.
-      - name: sprint_points_scored
-        description: Points from sprint races. Zero before 2021.
-      - name: points_dropped
-        description: >
-          championship_points minus points_scored. Zero from 1991 onwards, once
-          dropped-score rules ended; negative before that, where a driver's
-          worst results were discarded from their championship total.
       - name: is_champion
         description: >
-          True for the championship winner. Null where the driver has no
-          classified position, which includes Schumacher in 1997.
+          False, never null, for anyone without a classified position --
+          including Schumacher, disqualified from the 1997 championship.
+        data_tests: [not_null]
+      - name: points_dropped
+        description: >
+          championship_points minus points_scored. Zero from 1991; negative
+          before that where a driver's worst results were discarded.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, driver_id]
+          arguments:
+            combination_of_columns: [season, driver_id]

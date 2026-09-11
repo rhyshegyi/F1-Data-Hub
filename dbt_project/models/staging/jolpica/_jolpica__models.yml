@@ -24,7 +24,8 @@ models:
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round]
+          arguments:
+            combination_of_columns: [season, round]
 
   - name: stg_jolpica__results
     description: >
@@ -79,7 +80,8 @@ models:
           Null before roughly 2004, when the source began recording it.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id, car_number]
+          arguments:
+            combination_of_columns: [season, round, driver_id, car_number]
 
   - name: stg_jolpica__qualifying
     description: >
@@ -100,7 +102,8 @@ models:
           pre-2006 formats, which recorded a position but no segment times.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id]
+          arguments:
+            combination_of_columns: [season, round, driver_id]
 
   - name: stg_jolpica__drivers
     description: >
@@ -121,7 +124,8 @@ models:
         description: Career number. Null before 2014, when they were introduced.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, driver_id]
+          arguments:
+            combination_of_columns: [season, driver_id]
 
   - name: stg_jolpica__driver_standings
     description: >
@@ -164,7 +168,8 @@ models:
           would break the grain.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, driver_id]
+          arguments:
+            combination_of_columns: [season, driver_id]
 
   - name: stg_jolpica__constructor_standings
     description: >
@@ -191,7 +196,8 @@ models:
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, constructor_id]
+          arguments:
+            combination_of_columns: [season, constructor_id]
 
   - name: stg_jolpica__sprint_results
     description: >
@@ -210,4 +216,5 @@ models:
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id]
+          arguments:
+            combination_of_columns: [season, round, driver_id]

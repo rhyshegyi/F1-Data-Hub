@@ -29,6 +29,7 @@ select
     result.Driver.driverId             as driver_id,
     result.Constructor.constructorId   as constructor_id,
     result.Constructor.name            as constructor_name,
+    result.Constructor.nationality     as constructor_nationality,
 
     -- try_cast, not cast, throughout this layer. Six rows between 1961 and 1963
     -- carry the literal string 'None' as a car number, and a hard cast makes

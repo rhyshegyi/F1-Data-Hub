@@ -35,7 +35,8 @@ models:
           where there is no qualifying data to compare against.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id, car_number]
+          arguments:
+            combination_of_columns: [season, round, driver_id, car_number]
 
   - name: int_driver_form
     description: >
@@ -65,4 +66,5 @@ models:
         data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [season, round, driver_id]
+          arguments:
+            combination_of_columns: [season, round, driver_id]

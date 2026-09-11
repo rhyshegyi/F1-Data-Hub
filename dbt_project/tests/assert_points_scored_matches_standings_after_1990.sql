@@ -11,6 +11,6 @@ select
     championship_points,
     points_scored,
     points_dropped
-from {{ ref('driver_standings') }}
+from {{ ref('fct_driver_standings') }}
 where season >= 1991
   and points_dropped <> 0

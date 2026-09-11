@@ -38,6 +38,18 @@ select
     {{ jolpica_session_start('race.Sprint.date', 'race.Sprint.time') }} as sprint_start_utc,
     {{ jolpica_session_start('race.SprintQualifying.date', 'race.SprintQualifying.time') }} as sprint_qualifying_start_utc,
 
+    -- Session dates, kept alongside the timestamps above. The source sometimes
+    -- gives a session a date but no time -- all three 2021 sprints, for one --
+    -- and the timestamp is then null by design. Without these columns a
+    -- date-only session vanished from the model entirely: 2021 read as having
+    -- no sprint weekends.
+    try_cast(race.FirstPractice.date as date)    as fp1_date,
+    try_cast(race.SecondPractice.date as date)   as fp2_date,
+    try_cast(race.ThirdPractice.date as date)    as fp3_date,
+    try_cast(race.Qualifying.date as date)       as qualifying_date,
+    try_cast(race.Sprint.date as date)           as sprint_date,
+    try_cast(race.SprintQualifying.date as date) as sprint_qualifying_date,
+
     race.Circuit.circuitId                     as circuit_id,
     race.Circuit.circuitName                   as circuit_name,
     race.Circuit.Location.locality             as circuit_locality,

@@ -8,16 +8,20 @@
 -- Windows are ordered by race date rather than by (season, round) so career
 -- totals carry across season boundaries in the order the races actually
 -- happened.
+--
+-- Points include sprints. Sprints award championship points from 2021, and
+-- leaving them out made every career and rolling total fall short from then on
+-- -- 71 driver-seasons disagreed with the published standings before this was
+-- fixed.
 
-with race_entries as (
+with race_level as (
 
     select
         season,
         round,
         driver_id,
-        race_date,
 
-        sum(points)                       as points,
+        sum(points)                       as race_points,
         min(finish_position)              as best_finish_position,
         max(was_classified)               as was_classified,
         min(grid_position)                as grid_position,
@@ -26,7 +30,53 @@ with race_entries as (
         count(*)                          as cars_driven
 
     from {{ ref('int_results_joined_to_qualifying') }}
-    group by season, round, driver_id, race_date
+    group by season, round, driver_id
+
+),
+
+sprint_level as (
+
+    select season, round, driver_id, sum(points) as sprint_points
+    from {{ ref('stg_jolpica__sprint_results') }}
+    group by season, round, driver_id
+
+),
+
+races as (
+
+    select season, round, race_date
+    from {{ ref('stg_jolpica__races') }}
+
+),
+
+race_entries as (
+
+    -- Full outer join: a driver who scored in a sprint but did not take the
+    -- race start would otherwise lose those points entirely.
+    select
+        coalesce(race_level.season, sprint_level.season)       as season,
+        coalesce(race_level.round, sprint_level.round)         as round,
+        coalesce(race_level.driver_id, sprint_level.driver_id) as driver_id,
+        races.race_date,
+
+        coalesce(race_level.race_points, 0)                    as race_points,
+        coalesce(sprint_level.sprint_points, 0)                as sprint_points,
+        coalesce(race_level.race_points, 0)
+            + coalesce(sprint_level.sprint_points, 0)          as points,
+
+        race_level.best_finish_position,
+        coalesce(race_level.was_classified, false)             as was_classified,
+        race_level.grid_position,
+        coalesce(race_level.cars_driven, 0)                    as cars_driven
+
+    from race_level
+    full outer join sprint_level
+        on race_level.season = sprint_level.season
+       and race_level.round = sprint_level.round
+       and race_level.driver_id = sprint_level.driver_id
+    left join races
+        on coalesce(race_level.season, sprint_level.season) = races.season
+       and coalesce(race_level.round, sprint_level.round) = races.round
 
 ),
 
@@ -76,6 +126,8 @@ select
     round,
     driver_id,
     race_date,
+    race_points,
+    sprint_points,
     points,
     best_finish_position,
     was_classified,
