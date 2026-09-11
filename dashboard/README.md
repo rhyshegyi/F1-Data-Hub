@@ -98,9 +98,9 @@ default one:
   and "British Grand Prix" appears in 77 seasons with 77 different `race_id`s
   (and different round numbers), so Power BI refuses. Hide `race_name` if
   you want to stop it being picked by accident.
-- **Create a `_Measures` table** (*Enter data* → one empty column → load) and
-  put every measure below in it, then hide the empty column. Measures then
-  live in one place instead of scattered across fact tables.
+- **Keep every measure in its own `_Measures` table**, so they live in one
+  place instead of scattered across fact tables. Section 3 walks through
+  making it.
 - Set **Summarization: Don't summarize** on `dim_season[season]` and
   `dim_race[round]`, so Power BI stops offering to sum years.
 
@@ -109,8 +109,44 @@ default one:
 ## 3. Measures
 
 Use explicit measures, never Power BI's implicit "Sum of…" aggregations.
-Create each one in `_Measures` (*Home* → *New measure*).
 
+### Make the measures table (once)
+
+1. **Home → Enter data**. A small *Create Table* grid opens with one column,
+   `Column1`.
+2. Leave the grid empty. In the **Name** box at the bottom, type `_Measures`.
+3. Click **Load**, not *Edit* or *Transform*.
+4. `_Measures` appears in the **Data** pane on the right. The underscore
+   sorts it to the top.
+
+### Add a measure
+
+1. In the **Data** pane, right-click `_Measures` → **New measure**.
+2. The formula bar above the canvas shows `Measure = `. Select all of it and
+   replace it with **one** measure from the list below: the name, the `=`,
+   and everything after it.
+3. Press **Enter** (or the ✓ beside the formula bar). The measure appears
+   under `_Measures` with a calculator icon.
+
+**Each code block below is exactly one measure. Paste one block at a time.**
+For the multi-line ones, paste the whole block. The formula bar takes
+several lines, and the ⌄ arrow on its right expands it so you can see them.
+
+**Create them in the order listed.** Some measures use others (`Points to
+Date` uses `[Total Points]`), and a measure that refers to one that doesn't
+exist yet shows an error.
+
+If a measure lands in the wrong table, click it in the Data pane →
+**Measure tools** ribbon → **Home table** → `_Measures`.
+
+Once `_Measures` has at least one measure, right-click `Column1` → **Hide in
+report view**. With no visible columns left, Power BI treats `_Measures` as a
+pure measures table and shows it with a calculator icon. The icon can take a
+click elsewhere, or a save, to update.
+
+### The measures
+
+**1. Total Points**
 ```dax
 Total Points = SUM ( fct_points_by_round[total_points] )
 ```
@@ -118,6 +154,7 @@ Race and sprint points combined. Use this, not `fct_race_results[points]`,
 for anything about points scored. The race fact holds race points only and
 falls short from 2021 onwards.
 
+**2. Points to Date**
 ```dax
 Points to Date =
 VAR CurrentSeason = MAX ( dim_race[season] )
@@ -134,50 +171,78 @@ The running total for the progression chart. `REMOVEFILTERS ( dim_race )`
 clears the round on the axis (and, through the relationship, the season
 slicer). The two conditions then put back "this season, up to this race".
 
+Points as **published** versus points as **scored** (measures 3–5). They
+differ before 1991, when only a driver's best N results counted toward the
+title. That's what page 3 is built around.
+
+**3. Championship Points**
 ```dax
 Championship Points = SUM ( fct_driver_standings[championship_points] )
+```
 
+**4. Points Scored**
+```dax
 Points Scored = SUM ( fct_driver_standings[points_scored] )
+```
 
+**5. Points Dropped**
+```dax
 Points Dropped = SUM ( fct_driver_standings[points_dropped] )
 ```
-Points as **published** versus points as **scored**. They differ before 1991,
-when only a driver's best N results counted toward the title. That's what
-page 3 is built around.
 
+**6. Wins**
 ```dax
 Wins = CALCULATE ( COUNTROWS ( fct_race_results ), fct_race_results[is_win] = TRUE () )
+```
 
+**7. Podiums**
+```dax
 Podiums = CALCULATE ( COUNTROWS ( fct_race_results ), fct_race_results[is_podium] = TRUE () )
+```
 
+**8. Races Entered**
+```dax
 Races Entered = DISTINCTCOUNT ( fct_race_results[race_id] )
+```
+Counts distinct races rather than rows. A 1950s driver who took over a second
+car mid-race has two result rows for one race.
 
+**9. Avg Positions Gained**
+```dax
 Avg Positions Gained = AVERAGE ( fct_race_results[positions_gained] )
+```
 
+**10. Titles**
+```dax
 Titles = CALCULATE ( COUNTROWS ( fct_driver_standings ), fct_driver_standings[is_champion] = TRUE () )
 ```
-`Races Entered` counts distinct races rather than rows. A 1950s driver who took
-over a second car mid-race has two result rows for one race.
 
+**11. Championship Leader** (needs measure 3)
 ```dax
 Championship Leader =
 VAR Leader =
     TOPN ( 1, VALUES ( dim_driver[driver_name] ), [Championship Points], DESC )
 RETURN
     CONCATENATEX ( Leader, dim_driver[driver_name], ", " )
+```
+Ranks drivers by a measure rather than filtering on `championship_position = 1`.
+A filter on the fact table doesn't flow back to `dim_driver` (relationships
+are single-direction), so that version would return every driver's name.
+`CONCATENATEX` handles a tie at the top.
 
+**12. Leader Margin** (needs measure 3)
+```dax
 Leader Margin =
 VAR TopTwo = TOPN ( 2, VALUES ( dim_driver[driver_name] ), [Championship Points], DESC )
 RETURN
     MAXX ( TopTwo, [Championship Points] ) - MINX ( TopTwo, [Championship Points] )
+```
 
+**13. Season Progress**
+```dax
 Season Progress =
 SUM ( dim_season[races_completed] ) & " of " & SUM ( dim_season[races_scheduled] ) & " rounds"
 ```
-`Championship Leader` ranks drivers by a measure rather than filtering on
-`championship_position = 1`. A filter on the fact table doesn't flow back to
-`dim_driver` (relationships are single-direction), so that version would
-return every driver's name. `CONCATENATEX` handles a tie at the top.
 
 ---
 
