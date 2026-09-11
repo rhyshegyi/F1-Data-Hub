@@ -47,6 +47,13 @@ models:
                 field: season
       - name: race_name
         data_tests: [not_null]
+      - name: race_label
+        description: >
+          "R01 · Bahrain Grand Prix". Use this, not race_name, in slicers and
+          axes. race_name repeats across seasons, so Power BI can't sort it by
+          round or race_id; each race_label maps to exactly one round and sorts
+          correctly as text.
+        data_tests: [not_null]
       - name: race_date
         data_tests: [not_null]
       - name: has_results

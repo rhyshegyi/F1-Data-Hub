@@ -23,6 +23,15 @@ select
     races.season,
     races.round,
     races.race_name,
+
+    -- What slicers and axes should display. race_name can't be put in race
+    -- order in Power BI: "British Grand Prix" appears in 77 seasons with 77
+    -- different race_ids, and Sort by column needs each value to map to one
+    -- sort key. Embedding the round makes every label map to exactly one
+    -- round, and zero-padding it means the label sorts correctly as plain
+    -- text as well.
+    format_string('R%02d · %s', races.round, races.race_name) as race_label,
+
     races.race_date,
     races.race_start_utc,
 

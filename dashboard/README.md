@@ -84,9 +84,13 @@ default one:
 - **Hide every key column on the fact tables** (`race_id`, `driver_id`,
   `constructor_id`, `season` on the facts). Right-click → *Hide in report
   view*. Report authors should slice by dimension attributes, not fact keys.
-- **Sort `dim_race[race_name]` by `dim_race[race_id]`**. Select the column →
-  *Column tools* → *Sort by column*. Otherwise race names sort alphabetically
-  and Abu Dhabi comes first.
+- **Use `dim_race[race_label]` for race names in slicers and axes, not
+  `race_name`.** It reads `R01 · Bahrain Grand Prix` and sorts in race order
+  as it is, with nothing to configure. `race_name` can't be put in race
+  order: *Sort by column* needs each value to map to exactly one sort key,
+  and "British Grand Prix" appears in 77 seasons with 77 different `race_id`s
+  (and different round numbers), so Power BI refuses. Hide `race_name` if
+  you want to stop it being picked by accident.
 - **Create a `_Measures` table** (*Enter data* → one empty column → load) and
   put every measure below in it, then hide the empty column. Measures then
   live in one place instead of scattered across fact tables.
@@ -188,8 +192,8 @@ return every driver's name. `CONCATENATEX` handles a tie at the top.
 
 ### Page 2 — Race Weekend
 
-- **Slicers:** `dim_season[season]` and `dim_race[race_name]` (sorted by
-  `race_id`, per the tidy-up above).
+- **Slicers:** `dim_season[season]` and `dim_race[race_label]`. Filtered by
+  the season slicer, it lists that season's races in round order.
 - **Result table:** `fct_race_results[finish_position_text]`,
   `dim_driver[driver_name]`, `dim_constructor[constructor_name]`,
   `fct_race_results[qualifying_position]`, `fct_race_results[grid_position]`,
