@@ -303,15 +303,17 @@ visual disagrees, the measure or a relationship is wrong, not the data.
 
 | Where | Filter | Should show |
 |---|---|---|
-| Page 1 cards | 2026 | `13 of 23 rounds` · Leader **Andrea Kimi Antonelli** · Margin **66** |
-| Page 1 standings | 2026 | Antonelli 267, Russell 201, Hamilton 191 |
+| Page 1 cards | 2026 | `14 of 23 rounds` · Leader **Andrea Kimi Antonelli** · Margin **81** |
+| Page 1 standings | 2026 | Antonelli 292, Russell 211, Hamilton 191 |
 | Page 1 progression | 2021, round 21 | Verstappen **369.5**, Hamilton **369.5**: level going into the finale |
 | Page 1 progression | 2021, round 22 | Verstappen **395.5**, Hamilton **387.5** |
 | Page 3 | 1988 | Senna: championship **90**, scored **94**. Prost: championship **87**, scored **105**, dropped **18** |
 | Page 3 | 1964 | Surtees: championship **40**, scored **40**. Hill: championship **39**, scored **41** |
 | Page 3 titles | (any) | Hamilton 7, Schumacher 7, Fangio 5, Prost 4, Verstappen 4 |
 
-The 2026 figures are as of round 13 and change after each race.
+The 2026 figures are as of round 14 (Spanish Grand Prix, 13 Sep) and change
+after each race, so after a newer race the 2026 rows will be ahead of this table.
+The historical rows never change.
 
 The 2021 round-22 row is the one to watch. If Verstappen shows **388.5**, the
 progression chart is built on `fct_race_results[points]` and is missing his 7
