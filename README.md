@@ -91,8 +91,8 @@ standings) and stores each page verbatim in a Delta table keyed
   `Retry-After` and throttles below Jolpica's rate limit. The full backfill
   (77 seasons, 585 pages, about 42,000 rows) completed without a single 429.
 
-**Transformation** (`dbt_project/`, dbt on Databricks). 7 staging models, 2
-intermediate, 7 marts (4 dimensions, 3 facts).
+**Transformation** (`dbt_project/`, dbt on Databricks). 7 staging models, 3
+intermediate, 8 marts (4 dimensions, 4 facts).
 
 - `persist_docs` writes every model and column description into Databricks as
   a comment, so the documentation is visible in the warehouse itself.
@@ -117,7 +117,7 @@ The `.pbix` is committed and the screenshots above are from it.
 
 ## Testing
 
-**111 dbt tests** run on every build: not-null, uniqueness and relationships
+**113 dbt tests** run on every build: not-null, uniqueness and relationships
 tests on every key, plus singular tests that check the marts against the
 sport's own published numbers:
 
@@ -132,7 +132,7 @@ sport's own published numbers:
 These are the pipeline's alarm: if Jolpica ever publishes results and
 standings that disagree, the scheduled run fails.
 
-**163 Python tests** run offline against recorded Jolpica responses. The HTTP
+**179 Python tests** run offline against recorded Jolpica responses. The HTTP
 transport, the retry sleep and the database cursor are all injected, so pagination,
 retries, watermarking and parameter binding are tested without network or
 warehouse access. One test fails any dbt description containing double quotes

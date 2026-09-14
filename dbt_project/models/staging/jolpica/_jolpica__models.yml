@@ -98,8 +98,9 @@ models:
         description: Grid order set by qualifying, before any penalties.
       - name: q1_seconds
         description: >
-          Q1 time in seconds. Null both for drivers who set no time and for the
-          pre-2006 formats, which recorded a position but no segment times.
+          Q1 time in seconds, null for drivers who set no time. Before 2006
+          qualifying had no knockout segments, and the source records the
+          session time here.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

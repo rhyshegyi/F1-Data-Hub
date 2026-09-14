@@ -1,6 +1,6 @@
 version: 2
 
-# A star schema shaped for Power BI: four dimensions, three facts.
+# A star schema shaped for Power BI: four dimensions, four facts.
 #
 # Every foreign key carries a relationships test. In Power BI a fact row whose
 # key is missing from its dimension doesn't error -- it quietly lands under a
@@ -187,3 +187,45 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [season, driver_id]
+
+  - name: fct_teammate_qualifying
+    description: >
+      One row per driver per qualifying session, compared with their teammate,
+      1994 to present. Each pair appears twice, once from each side. Summarise
+      gap_pct with a median: one crash or red flag in a session can put a
+      driver several percent down and would drag an average.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_constructor')
+                field: constructor_id
+      - name: teammate_name
+        description: >
+          Carried on the fact because a second relationship from teammate_id to
+          dim_driver would have to be inactive in Power BI.
+        data_tests: [not_null]
+      - name: gap_pct
+        description: >
+          Driver lap minus teammate lap as a percentage of the faster lap, in the
+          last session both set a time in. Negative means the driver was faster.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]

@@ -1,8 +1,8 @@
 -- One row per driver per qualifying session. Available from 1994 onwards only.
 --
--- Q1/Q2/Q3 are null for drivers eliminated in an earlier segment, and all three
--- are null for the pre-2006 formats, where the source records a qualifying
--- position but no per-segment times.
+-- Q2/Q3 are null for drivers eliminated in an earlier segment. Before 2006
+-- there were no knockout segments, and the source records the session time as
+-- Q1 (with Q2 in a few 2003-2005 two-session formats).
 
 with pages as (
 

@@ -68,3 +68,45 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [season, round, driver_id]
+
+  - name: int_teammate_qualifying
+    description: >
+      One row per driver per qualifying session, paired with their teammate,
+      1994 onwards. Each pair appears twice, once from each side. Teams that ran
+      a single car have no teammate and are left out.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: teammate_id
+        data_tests: [not_null]
+      - name: session_compared
+        description: >
+          The last session both teammates set a time in: Q3, Q2 or Q1. Before
+          2006 there was a single timed session, recorded as Q1. Null when the
+          two never both set a time.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Q1, Q2, Q3]
+      - name: gap_seconds
+        description: >
+          Driver lap minus teammate lap in the session compared. Negative means
+          the driver was faster.
+      - name: gap_pct
+        description: >
+          gap_seconds as a percentage of the faster of the two laps, so gaps
+          compare fairly across circuits of different lengths.
+      - name: beat_teammate
+        description: >
+          Whether the driver qualified ahead of their teammate, by qualifying
+          position. Available even when a lap time is missing.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round, driver_id]

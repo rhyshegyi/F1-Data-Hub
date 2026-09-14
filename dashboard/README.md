@@ -1,6 +1,6 @@
 # Dashboard — Power BI
 
-A three-page Power BI report over the `f1_marts` star schema. It's built in
+A four-page Power BI report over the `f1_marts` star schema. It's built in
 Power BI Desktop (free) and shown in the main README as screenshots, with the
 `.pbix` committed here.
 
@@ -26,7 +26,7 @@ link would break when the trial ends. The skill is in building the report
    - The whole model is about 60k rows. Import holds it comfortably.
 4. Authenticate with **Personal Access Token** and paste the token from `.env`.
    Power BI keeps it in its own local credential store.
-5. In the Navigator, open `workspace` → `f1_marts` and tick **all seven
+5. In the Navigator, open `workspace` → `f1_marts` and tick **all eight
    tables**. Nothing from `f1_raw`, `f1_staging` or `f1_intermediate`; the
    report reads the marts layer only. That rule is the whole point of the
    layering.
@@ -41,7 +41,7 @@ Give it a moment.
 ### Relationships
 
 Open **Model view**. Power BI auto-detects relationships by matching column
-names. Check that you end up with exactly these eight, all *one-to-many*
+names. Check that you end up with exactly these eleven, all *one-to-many*
 with *single* cross-filter direction, and delete anything else it invents:
 
 | From (one side) | To (many side) | On |
@@ -54,6 +54,9 @@ with *single* cross-filter direction, and delete anything else it invents:
 | `dim_driver` | `fct_points_by_round` | `driver_id` |
 | `dim_driver` | `fct_driver_standings` | `driver_id` |
 | `dim_constructor` | `fct_race_results` | `constructor_id` |
+| `dim_race` | `fct_teammate_qualifying` | `race_id` |
+| `dim_driver` | `fct_teammate_qualifying` | `driver_id` |
+| `dim_constructor` | `fct_teammate_qualifying` | `constructor_id` |
 
 ```mermaid
 erDiagram
@@ -65,7 +68,17 @@ erDiagram
     dim_driver      ||--o{ fct_points_by_round  : driver_id
     dim_driver      ||--o{ fct_driver_standings : driver_id
     dim_constructor ||--o{ fct_race_results     : constructor_id
+    dim_race        ||--o{ fct_teammate_qualifying : race_id
+    dim_driver      ||--o{ fct_teammate_qualifying : driver_id
+    dim_constructor ||--o{ fct_teammate_qualifying : constructor_id
 ```
+
+`fct_teammate_qualifying` joins to `dim_driver` on the driver only. The
+teammate's name is a plain column on the fact (`teammate_name`). A second
+relationship from `teammate_id` to `dim_driver` would have to be inactive,
+because Power BI allows only one active path between two tables, and every
+visual would then need `USERELATIONSHIP` just to show a name. **Don't** create
+one, and hide `teammate_id`.
 
 `race_id` is `season * 100 + round` (2024 round 21 is `202421`). It exists
 because Power BI relationships can't join on two columns. The marts provide
@@ -244,6 +257,50 @@ Season Progress =
 SUM ( dim_season[races_completed] ) & " of " & SUM ( dim_season[races_scheduled] ) & " rounds"
 ```
 
+Measures 14–18 are for page 4, Teammate Battles. Each row of
+`fct_teammate_qualifying` is one driver compared with their teammate in one
+qualifying session, measured in the last session both set a time in.
+
+**14. Qualifying Sessions**
+```dax
+Qualifying Sessions = COUNTROWS ( fct_teammate_qualifying )
+```
+
+**15. Quali H2H Wins**
+```dax
+Quali H2H Wins = CALCULATE ( COUNTROWS ( fct_teammate_qualifying ), fct_teammate_qualifying[beat_teammate] = TRUE () )
+```
+
+**16. Quali H2H Losses**
+```dax
+Quali H2H Losses = CALCULATE ( COUNTROWS ( fct_teammate_qualifying ), fct_teammate_qualifying[beat_teammate] = FALSE () )
+```
+
+**17. Qualifying Head-to-Head** (needs measures 14–16)
+```dax
+Qualifying Head-to-Head =
+IF (
+    [Qualifying Sessions] > 0,
+    FORMAT ( [Quali H2H Wins] + 0, "0" ) & "–" & FORMAT ( [Quali H2H Losses] + 0, "0" )
+)
+```
+The `IF` matters. Without it the measure returns `0–0` for pairings that never
+happened. A table visual shows every combination of its columns that a measure
+returns a value for, so the page would list every driver against every
+teammate name and team in the model.
+
+**18. Median Gap %**
+```dax
+Median Gap % = DIVIDE ( MEDIAN ( fct_teammate_qualifying[gap_pct] ), 100 )
+```
+Then **Measure tools → Format → Percentage**, and type a custom format of
+`0.000%` so small gaps don't all round to `0.00%`. Negative means the driver
+was faster than their teammate.
+
+A median rather than an average: one crash or aborted lap can put a driver 20%
+down in a session. Verstappen's 2023 average gap to Pérez is 4.2%; the median
+is 0.6%, which is the real picture.
+
 ---
 
 ## 4. Pages
@@ -302,6 +359,27 @@ so the most points didn't always win the title.
 - **Titles by driver (bar):** `dim_driver[driver_name]` by `[Titles]`, Top 10,
   with the season slicer's interaction turned off for this visual.
 
+### Page 4 — Teammate Battles
+
+Your teammate is the only driver in the same car, so qualifying against them
+is the cleanest comparison of drivers there is. Data starts in 1994.
+
+- **Slicer:** `dim_season[season]`, dropdown, *single select*.
+- **Table:** `dim_driver[driver_name]` (rename **Driver**),
+  `fct_teammate_qualifying[teammate_name]` (**Teammate**),
+  `dim_constructor[constructor_name]` (**Team**), `[Qualifying Sessions]`,
+  `[Qualifying Head-to-Head]`, `[Median Gap %]`. Sort by `[Median Gap %]`
+  ascending, so the most dominant driver is at the top.
+  - Every pairing appears twice, once from each driver's side, with opposite
+    gaps. That's intended: each driver gets a row.
+  - A driver who changed teammate mid-season gets one row per teammate. In
+    2026 Verstappen has one row against Lawson and one against Hadjar.
+  - Optional: conditional formatting on `[Median Gap %]`
+    (**Format → Cell elements → Background color**), green below zero and red
+    above.
+- **Median gap (bar chart), optional:** `dim_driver[driver_name]` by
+  `[Median Gap %]`, sorted ascending.
+
 ---
 
 ## 5. Check your numbers
@@ -319,6 +397,8 @@ visual disagrees, the measure or a relationship is wrong, not the data.
 | Page 3 | 1988 | Senna: championship **90**, scored **94**. Prost: championship **87**, scored **105**, dropped **18** |
 | Page 3 | 1964 | Surtees: championship **40**, scored **40**. Hill: championship **39**, scored **41** |
 | Page 3 titles | (any) | Hamilton 7, Schumacher 7, Fangio 5, Prost 4, Verstappen 4 |
+| Page 4 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.225%** |
+| Page 4 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.604%** |
 
 The 2026 figures are as of round 14 (Spanish Grand Prix, 13 Sep) and change
 after each race, so after a newer race the 2026 rows will be ahead of this table.
