@@ -88,6 +88,23 @@ array<struct<season:string,round:string,
 {%- endmacro %}
 
 
+{% macro jolpica_laps_schema() -%}
+array<struct<season:string,round:string,url:string,raceName:string,
+  {{ jolpica_circuit_schema() }},
+  date:string,time:string,
+  Laps:array<struct<number:string,
+    Timings:array<struct<driverId:string,position:string,time:string>>>>>>
+{%- endmacro %}
+
+
+{% macro jolpica_pit_stops_schema() -%}
+array<struct<season:string,round:string,url:string,raceName:string,
+  {{ jolpica_circuit_schema() }},
+  date:string,time:string,
+  PitStops:array<struct<driverId:string,lap:string,stop:string,time:string,duration:string>>>>
+{%- endmacro %}
+
+
 {% macro jolpica_sprint_schema() -%}
 array<struct<season:string,round:string,url:string,raceName:string,
   {{ jolpica_circuit_schema() }},

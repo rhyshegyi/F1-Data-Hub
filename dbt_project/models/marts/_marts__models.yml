@@ -283,6 +283,67 @@ models:
           arguments:
             combination_of_columns: [driver_id, streak_type, first_race_id]
 
+  - name: fct_lap_positions
+    description: >
+      One row per driver per lap, 1996 to present. Lap 0 is the starting grid,
+      so a position chart starts where each driver lined up.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: lap
+        description: Lap number. 0 is the starting grid.
+        data_tests: [not_null]
+      - name: position
+        description: Running position at the end of the lap, or grid slot on lap 0.
+        data_tests: [not_null]
+      - name: is_pit_lap
+        description: >
+          The driver pitted on this lap. Always false before 2011, when pit
+          stop data begins.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+
+  - name: fct_pit_stops
+    description: One row per pit stop, 2011 to present.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: duration_seconds
+        description: >
+          Time in the pit lane, entry to exit, in seconds. Not just stationary
+          time; a red-flag or repair stop can run past a minute.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+
   - name: fct_teammate_qualifying
     description: >
       One row per driver per qualifying session, compared with their teammate,

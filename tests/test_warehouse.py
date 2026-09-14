@@ -3,7 +3,7 @@
 from conftest import FakeCursor, fixture_text
 
 from ingestion.jolpica import Page
-from ingestion.warehouse import INSERT_BATCH_SIZE, ensure_schema, replace_season
+from ingestion.warehouse import INSERT_BATCH_SIZE, ensure_schema, replace_race, replace_season
 
 TABLE = "workspace.f1_raw.raw_jolpica_results"
 
@@ -83,6 +83,42 @@ def test_every_page_column_is_persisted():
 
     _, parameters = next((s, p) for s, p in cursor.calls if s.startswith("INSERT"))
     assert 2024 in parameters and 300 in parameters and 479 in parameters
+
+
+def race_page(offset: int = 0) -> Page:
+    return Page(
+        endpoint="laps",
+        season=2024,
+        offset=offset,
+        limit=100,
+        total=1129,
+        request_url=f"https://api.jolpi.ca/ergast/f1/2024/1/laps/?limit=100&offset={offset}",
+        payload=fixture_text("laps_2024_1_offset0.json"),
+        round=1,
+    )
+
+
+def test_replacing_a_race_deletes_only_that_race():
+    """Loading round 14 must not touch rounds 1 to 13 of the same season."""
+    cursor = FakeCursor()
+
+    replace_race(cursor, "workspace.f1_raw.raw_jolpica_laps", 2024, 1, [race_page()])
+
+    delete, parameters = next((s, p) for s, p in cursor.calls if s.startswith("DELETE"))
+    assert "WHERE season = ? AND round = ?" in delete
+    assert parameters == [2024, 1]
+    kinds = [s.split()[0] for s in cursor.statements]
+    assert kinds.index("DELETE") < kinds.index("INSERT")
+
+
+def test_race_pages_persist_their_round():
+    cursor = FakeCursor()
+
+    replace_race(cursor, "workspace.f1_raw.raw_jolpica_laps", 2024, 1, [race_page(offset=300)])
+
+    insert, parameters = next((s, p) for s, p in cursor.calls if s.startswith("INSERT"))
+    assert "round" in insert
+    assert parameters[:3] == [2024, 1, 300]
 
 
 def test_ensure_schema_is_idempotent_sql():

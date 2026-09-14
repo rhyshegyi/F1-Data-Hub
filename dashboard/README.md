@@ -27,7 +27,7 @@ link would break when the trial ends. The skill is in building the report
      comfortably.
 4. Authenticate with **Personal Access Token** and paste the token from `.env`.
    Power BI keeps it in its own local credential store.
-5. In the Navigator, open `workspace` → `f1_marts` and tick **all ten
+5. In the Navigator, open `workspace` → `f1_marts` and tick **all twelve
    tables**. Nothing from `f1_raw`, `f1_staging` or `f1_intermediate`; the
    report reads the marts layer only. That rule is the whole point of the
    layering.
@@ -42,7 +42,7 @@ Give it a moment.
 ### Relationships
 
 Open **Model view**. Power BI auto-detects relationships by matching column
-names. Check that you end up with exactly these thirteen, all *one-to-many*
+names. Check that you end up with exactly these seventeen, all *one-to-many*
 with *single* cross-filter direction, and delete anything else it invents:
 
 | From (one side) | To (many side) | On |
@@ -60,6 +60,10 @@ with *single* cross-filter direction, and delete anything else it invents:
 | `dim_constructor` | `fct_teammate_qualifying` | `constructor_id` |
 | `dim_driver` | `fct_driver_careers` | `driver_id` |
 | `dim_driver` | `fct_driver_streaks` | `driver_id` |
+| `dim_race` | `fct_lap_positions` | `race_id` |
+| `dim_driver` | `fct_lap_positions` | `driver_id` |
+| `dim_race` | `fct_pit_stops` | `race_id` |
+| `dim_driver` | `fct_pit_stops` | `driver_id` |
 
 ```mermaid
 erDiagram
@@ -76,6 +80,10 @@ erDiagram
     dim_constructor ||--o{ fct_teammate_qualifying : constructor_id
     dim_driver      ||--o{ fct_driver_careers   : driver_id
     dim_driver      ||--o{ fct_driver_streaks   : driver_id
+    dim_race        ||--o{ fct_lap_positions    : race_id
+    dim_driver      ||--o{ fct_lap_positions    : driver_id
+    dim_race        ||--o{ fct_pit_stops        : race_id
+    dim_driver      ||--o{ fct_pit_stops        : driver_id
 ```
 
 `fct_driver_careers` has one row per driver, so Power BI detects the
@@ -425,6 +433,58 @@ RETURN
 ```
 A title's age is the driver's age at that season's final race.
 
+Measures 31–36 are for the position chart and pit stops on page 2. Measure 34
+needs the **Drivers Shown** parameter from page 2's setup, so make that first.
+
+**31. Lap Position**
+```dax
+Lap Position = MIN ( fct_lap_positions[position] )
+```
+
+**32. Finish Position**
+```dax
+Finish Position = MIN ( fct_race_results[finish_position] )
+```
+
+**33. Finish Rank** (needs measure 32)
+```dax
+Finish Rank =
+IF (
+    NOT ISBLANK ( [Finish Position] ),
+    RANKX (
+        FILTER ( ALLSELECTED ( dim_driver[driver_name] ), NOT ISBLANK ( [Finish Position] ) ),
+        [Finish Position], , ASC, DENSE
+    )
+)
+```
+Ranks the drivers in the selected race by where they finished. The `FILTER`
+keeps the other 800-odd drivers in `dim_driver`, who weren't in the race, out
+of the ranking.
+
+**34. Show Driver** (needs measure 33)
+```dax
+Show Driver = IF ( [Finish Rank] <= [Drivers Shown Value], 1, 0 )
+```
+
+**35. Chart Position** (needs measures 31 and 34)
+```dax
+Chart Position = IF ( [Show Driver] = 1, [Lap Position] )
+```
+Blank for drivers outside the top N, so they draw no line. Change the Drivers
+Shown slider to 3 or 10 and the chart follows, for any race, without picking
+names by hand.
+
+**36. Lap Data Note**
+```dax
+Lap Data Note =
+SWITCH (
+    TRUE (),
+    ISBLANK ( COUNTROWS ( fct_lap_positions ) ), "Lap-by-lap positions start in 1996",
+    ISBLANK ( COUNTROWS ( fct_pit_stops ) ), "Pit stop data starts in 2011",
+    BLANK ()
+)
+```
+
 ---
 
 ## 4. Pages
@@ -471,6 +531,28 @@ A title's age is the driver's age at that season's final race.
   `[Avg Positions Gained]`, sorted descending. Qualifying and grid differ
   when there are penalties, and `grid_penalty_positions` shows by how much.
   Qualifying data starts in 1994.
+- **Drivers Shown parameter:** **Modeling → New parameter → Numeric range**.
+  Name `Drivers Shown`, minimum `1`, maximum `25`, increment `1`, default `5`,
+  with **Add slicer to this page** ticked. This creates `[Drivers Shown Value]`
+  for measure 34.
+- **Position chart (line chart):** X-axis `fct_lap_positions[lap]`, Y-axis
+  `[Chart Position]`, Legend `dim_driver[driver_name]`.
+  - **Put P1 at the top:** **Format → Y-axis → Range → Invert range: On**, and
+    set the minimum to 1.
+  - **X-axis type: Continuous** (**Format → X-axis → Type**), so laps space
+    evenly. Lap 0 is the starting grid.
+  - **Line colours** can't come from data, so they don't follow team colours
+    automatically. Set them per driver under **Format → Lines → Colors** if
+    you want them to, for the race you screenshot.
+- **Pit stops (table):** `dim_driver[driver_name]`,
+  `fct_pit_stops[stop_number]` (**Stop**), `[lap]` (**Lap**),
+  `[duration_seconds]` (**Pit lane (s)**), all numeric fields **Don't
+  summarize**.
+  - **Visual filter:** `[Show Driver]` **is 1**, so it lists stops for the
+    same drivers as the chart.
+  - **Sort** by Lap, ascending, to read the race's strategy in order.
+- **Card:** `[Lap Data Note]`. It's blank for a modern race and explains an
+  empty chart or table for older ones.
 
 ### Page 3 — Teammate Battles
 

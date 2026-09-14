@@ -20,6 +20,21 @@ CREATE TABLE IF NOT EXISTS {table} (
 )
 """
 
+# Laps and pit stops are fetched one race at a time, so their pages carry the
+# round and are replaced race by race.
+RACE_PAGE_DDL = """
+CREATE TABLE IF NOT EXISTS {table} (
+    season      INT,
+    round       INT,
+    page_offset INT,
+    page_limit  INT,
+    total_rows  INT,
+    request_url STRING,
+    payload     STRING,
+    ingested_at TIMESTAMP
+)
+"""
+
 LOAD_STATE_DDL = """
 CREATE TABLE IF NOT EXISTS {table} (
     endpoint    STRING,

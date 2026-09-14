@@ -53,6 +53,7 @@ class Page:
     total: int
     request_url: str
     payload: str
+    round: int | None = None
 
     @property
     def row_count(self) -> int:
@@ -70,11 +71,15 @@ def fetch_pages(
     season: int,
     *,
     transport: Callable[[str], object],
+    round_number: int | None = None,
     limit: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     url_base: str | None = None,
 ) -> Iterator[Page]:
     """Yield every page of `endpoint` for `season`, oldest offset first.
+
+    With `round_number`, only that race: laps and pit stops can't be requested
+    for a whole season.
 
     A season the endpoint has no data for (qualifying before 1994) yields
     nothing at all. That is absence, not failure.
@@ -82,11 +87,12 @@ def fetch_pages(
     cap = page_limit()
     limit = cap if limit is None else min(limit, cap)
     url_base = (url_base or base_url()).rstrip("/")
+    scope = f"{season}/{round_number}" if round_number is not None else f"{season}"
 
     offset = 0
     total = None
     while total is None or offset < total:
-        url = f"{url_base}/{season}/{endpoint}/?limit={limit}&offset={offset}"
+        url = f"{url_base}/{scope}/{endpoint}/?limit={limit}&offset={offset}"
         response = _get(url, transport=transport, sleep=sleep)
 
         envelope = json.loads(response.text)["MRData"]
@@ -102,6 +108,7 @@ def fetch_pages(
             total=total,
             request_url=url,
             payload=response.text,
+            round=round_number,
         )
 
         offset += limit

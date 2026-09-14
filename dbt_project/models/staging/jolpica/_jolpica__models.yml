@@ -200,6 +200,54 @@ models:
           arguments:
             combination_of_columns: [season, constructor_id]
 
+  - name: stg_jolpica__laps
+    description: >
+      One row per driver per lap, 1996 onwards: running position and lap time.
+      A lap can be split across two raw pages; exploding to individual timings
+      reassembles it.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: position
+        description: Running position at the end of the lap.
+        data_tests: [not_null]
+      - name: lap_time_seconds
+        description: Lap time in seconds, parsed from the source M:SS.mmm string.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round, lap, driver_id]
+
+  - name: stg_jolpica__pit_stops
+    description: >
+      One row per pit stop, 2011 onwards: the lap it was made on and how long
+      the driver spent in the pit lane.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: stop_number
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: duration_seconds
+        description: >
+          Time in the pit lane in seconds, not just stationary time. A stop
+          under a red flag or for repairs can run past a minute.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round, driver_id, stop_number]
+
   - name: stg_jolpica__sprint_results
     description: >
       One row per driver per sprint race, 2021 onwards. Separate from

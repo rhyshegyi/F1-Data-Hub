@@ -86,6 +86,27 @@ sources:
             warn_after: {count: 10, period: day}
             error_after: {count: 30, period: day}
 
+      - name: raw_jolpica_laps
+        description: >
+          Every driver's position and time on every lap, 1996 onwards. Fetched
+          one race at a time, because Jolpica rejects a season-wide request, so
+          each row also carries the round. Around 12 pages per race.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
+      - name: raw_jolpica_pit_stops
+        description: >
+          Pit stops, 2011 onwards: lap, stop number and duration. Fetched one
+          race at a time, like laps.
+        config:
+          loaded_at_field: ingested_at
+          freshness:
+            warn_after: {count: 10, period: day}
+            error_after: {count: 30, period: day}
+
       - name: raw_jolpica_load_state
         description: >
           Ingestion watermarks -- control state, not data. Records which

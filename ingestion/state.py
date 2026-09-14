@@ -46,6 +46,17 @@ def read_watermarks(
     }
 
 
+def progress_name(endpoint: str) -> str:
+    """The watermark recording how far through a season a per-race load got.
+
+    Kept apart from the endpoint's own watermark, which only exists once a
+    season is fully loaded. An interrupted backfill leaves progress but no
+    completion, so the next run carries on from the next race without
+    mistaking a half-loaded season for a finished one.
+    """
+    return f"{endpoint}_progress"
+
+
 def needs_load(
     endpoint: str,
     season: int,

@@ -103,6 +103,24 @@ def test_requests_are_throttled_between_pages():
     assert sleep.delays, "must pace itself against a 500/hour budget"
 
 
+def test_a_race_scoped_request_puts_the_round_in_the_url():
+    """Laps and pit stops can only be requested one race at a time."""
+    transport = FakeTransport(FakeResponse(fixture_text("laps_2024_1_offset0.json")))
+
+    page = next(iter(fetch_pages("laps", 2024, round_number=1, transport=transport, limit=2, sleep=RecordingSleep())))
+
+    assert "/2024/1/laps/" in transport.urls[0]
+    assert page.round == 1
+
+
+def test_a_season_scoped_page_has_no_round():
+    transport = FakeTransport(FakeResponse(fixture_text("results_2024_offset0.json")))
+
+    page = next(iter(fetch_pages("results", 2024, transport=transport, sleep=RecordingSleep())))
+
+    assert page.round is None
+
+
 def test_max_round_reads_the_latest_round_in_a_payload():
     assert max_round(fixture_text("results_2024_lastpage.json")) == 24
     assert max_round(fixture_text("results_2024_offset0.json")) == 1
