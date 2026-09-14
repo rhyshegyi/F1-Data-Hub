@@ -257,7 +257,7 @@ Season Progress =
 SUM ( dim_season[races_completed] ) & " of " & SUM ( dim_season[races_scheduled] ) & " rounds"
 ```
 
-Measures 14–18 are for page 4, Teammate Battles. Each row of
+Measures 14–19 are for page 4, Teammate Battles. Each row of
 `fct_teammate_qualifying` is one driver compared with their teammate in one
 qualifying session, measured in the last session both set a time in.
 
@@ -300,6 +300,15 @@ was faster than their teammate.
 A median rather than an average: one crash or aborted lap can put a driver 20%
 down in a session. Verstappen's 2023 average gap to Pérez is 4.2%; the median
 is 0.6%, which is the real picture.
+
+**19. Median Gap (s)**
+```dax
+Median Gap (s) = MEDIAN ( fct_teammate_qualifying[gap_seconds] )
+```
+Format it as a decimal number with **3** decimal places. Negative means the
+driver was faster. Seconds read more naturally (*0.2 s a lap*), but a tenth at
+Monaco is a bigger margin than a tenth at Spa, so keep `[Median Gap %]` as the
+column to sort by.
 
 ---
 
@@ -368,7 +377,7 @@ is the cleanest comparison of drivers there is. Data starts in 1994.
 - **Table:** `dim_driver[driver_name]` (rename **Driver**),
   `fct_teammate_qualifying[teammate_name]` (**Teammate**),
   `dim_constructor[constructor_name]` (**Team**), `[Qualifying Sessions]`,
-  `[Qualifying Head-to-Head]`, `[Median Gap %]`. Sort by `[Median Gap %]`
+  `[Qualifying Head-to-Head]`, `[Median Gap (s)]`, `[Median Gap %]`. Sort by `[Median Gap %]`
   ascending, so the most dominant driver is at the top.
   - Every pairing appears twice, once from each driver's side, with opposite
     gaps. That's intended: each driver gets a row.
@@ -397,8 +406,8 @@ visual disagrees, the measure or a relationship is wrong, not the data.
 | Page 3 | 1988 | Senna: championship **90**, scored **94**. Prost: championship **87**, scored **105**, dropped **18** |
 | Page 3 | 1964 | Surtees: championship **40**, scored **40**. Hill: championship **39**, scored **41** |
 | Page 3 titles | (any) | Hamilton 7, Schumacher 7, Fangio 5, Prost 4, Verstappen 4 |
-| Page 4 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.225%** |
-| Page 4 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.604%** |
+| Page 4 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.190 s**, **-0.225%** |
+| Page 4 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.540 s**, **-0.604%** |
 
 The 2026 figures are as of round 14 (Spanish Grand Prix, 13 Sep) and change
 after each race, so after a newer race the 2026 rows will be ahead of this table.
