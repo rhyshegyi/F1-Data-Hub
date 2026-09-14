@@ -69,6 +69,43 @@ models:
           arguments:
             combination_of_columns: [season, round, driver_id]
 
+  - name: int_driver_race
+    description: >
+      One row per driver per race start, shared drives collapsed to the
+      driver's best result. The base for career totals, streaks and age
+      records.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+      - name: age_days
+        description: >
+          Days between the driver's date of birth and the race. Null for the
+          handful of drivers with no recorded date of birth.
+      - name: pole
+        description: >
+          The driver's car started from grid slot 1. Grid data covers every
+          season, qualifying only from 1994. Can differ from the qualifying
+          pole after a grid penalty.
+        data_tests: [not_null]
+      - name: modern_points
+        description: >
+          The result rescored with the 25-18-15-12-10-8-6-4-2-1 system for a
+          classified top ten, so results compare across eras. Not the points
+          actually awarded.
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round, driver_id]
+
   - name: int_teammate_qualifying
     description: >
       One row per driver per qualifying session, paired with their teammate,

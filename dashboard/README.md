@@ -23,10 +23,11 @@ link would break when the trial ends. The skill is in building the report
      live, Import is the only mode that works.
    - With DirectQuery, every visual on every page queries your Free Edition
      warehouse each time someone clicks.
-   - The whole model is about 60k rows. Import holds it comfortably.
+   - The model is small: tens of thousands of rows per table. Import holds it
+     comfortably.
 4. Authenticate with **Personal Access Token** and paste the token from `.env`.
    Power BI keeps it in its own local credential store.
-5. In the Navigator, open `workspace` → `f1_marts` and tick **all eight
+5. In the Navigator, open `workspace` → `f1_marts` and tick **all ten
    tables**. Nothing from `f1_raw`, `f1_staging` or `f1_intermediate`; the
    report reads the marts layer only. That rule is the whole point of the
    layering.
@@ -41,7 +42,7 @@ Give it a moment.
 ### Relationships
 
 Open **Model view**. Power BI auto-detects relationships by matching column
-names. Check that you end up with exactly these eleven, all *one-to-many*
+names. Check that you end up with exactly these thirteen, all *one-to-many*
 with *single* cross-filter direction, and delete anything else it invents:
 
 | From (one side) | To (many side) | On |
@@ -57,6 +58,8 @@ with *single* cross-filter direction, and delete anything else it invents:
 | `dim_race` | `fct_teammate_qualifying` | `race_id` |
 | `dim_driver` | `fct_teammate_qualifying` | `driver_id` |
 | `dim_constructor` | `fct_teammate_qualifying` | `constructor_id` |
+| `dim_driver` | `fct_driver_careers` | `driver_id` |
+| `dim_driver` | `fct_driver_streaks` | `driver_id` |
 
 ```mermaid
 erDiagram
@@ -71,7 +74,15 @@ erDiagram
     dim_race        ||--o{ fct_teammate_qualifying : race_id
     dim_driver      ||--o{ fct_teammate_qualifying : driver_id
     dim_constructor ||--o{ fct_teammate_qualifying : constructor_id
+    dim_driver      ||--o{ fct_driver_careers   : driver_id
+    dim_driver      ||--o{ fct_driver_streaks   : driver_id
 ```
+
+`fct_driver_careers` has one row per driver, so Power BI detects the
+relationship as **One to one** and makes it filter in both directions. Open it
+(double-click the line in Model view) and change **Cardinality** to **Many to
+one (\*:1)** from `fct_driver_careers` to `dim_driver`, with **Cross filter
+direction: Single**, to match the rest of the model.
 
 `fct_teammate_qualifying` joins to `dim_driver` on the driver only. The
 teammate's name is a plain column on the fact (`teammate_name`). A second
@@ -257,7 +268,7 @@ Season Progress =
 SUM ( dim_season[races_completed] ) & " of " & SUM ( dim_season[races_scheduled] ) & " rounds"
 ```
 
-Measures 14–19 are for page 4, Teammate Battles. Each row of
+Measures 14–19 are for page 3, Teammate Battles. Each row of
 `fct_teammate_qualifying` is one driver compared with their teammate in one
 qualifying session, measured in the last session both set a time in.
 
@@ -326,6 +337,94 @@ Team Text Colour = SELECTEDVALUE ( dim_constructor[text_colour], "#000000" )
 Each team has black or white text, whichever reads better on its colour, so
 Tyrrell's navy and Minardi's black stay readable.
 
+Measures 22–30 are for page 4, Records. Measure 22 needs the **Minimum
+Starts** parameter from page 4's setup, so make that first.
+
+**22. Meets Minimum Starts**
+```dax
+Meets Minimum Starts = IF ( SUM ( fct_driver_careers[starts] ) >= [Minimum Starts Value], 1, 0 )
+```
+A visual filter on this keeps drivers below the threshold out of the career
+leaderboard. Without one, 1950s Indianapolis 500 entrants top every rate:
+the Indy 500 counted toward the championship until 1960, so several drivers
+have one start and one win.
+
+**23. Season Win Rate**
+```dax
+Season Win Rate = DIVIDE ( SUM ( fct_driver_standings[race_wins] ), SUM ( fct_driver_standings[races_entered] ) )
+```
+
+**24. Season Modern Pts per Start**
+```dax
+Season Modern Pts per Start = DIVIDE ( SUM ( fct_driver_standings[modern_points] ), SUM ( fct_driver_standings[races_entered] ) )
+```
+
+Measures 25–30 are the age record cards. Each finds the record holder across
+all drivers (`ALL` ignores any filters on the page), and shows the name with
+the age as F1 quotes it, like `18y 228d`. `CONCATENATEX` lists both drivers if
+two ever share a record.
+
+**25. Youngest Winner**
+```dax
+Youngest Winner =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_first_win_days] ) ),
+        fct_driver_careers[age_first_win_days], ASC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_first_win], ", " )
+```
+
+**26. Oldest Winner**
+```dax
+Oldest Winner =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_last_win_days] ) ),
+        fct_driver_careers[age_last_win_days], DESC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_last_win], ", " )
+```
+
+**27. Youngest Podium**
+```dax
+Youngest Podium =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_first_podium_days] ) ),
+        fct_driver_careers[age_first_podium_days], ASC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_first_podium], ", " )
+```
+
+**28. Oldest Podium**
+```dax
+Oldest Podium =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_last_podium_days] ) ),
+        fct_driver_careers[age_last_podium_days], DESC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_last_podium], ", " )
+```
+
+**29. Youngest Champion**
+```dax
+Youngest Champion =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_first_title_days] ) ),
+        fct_driver_careers[age_first_title_days], ASC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_first_title], ", " )
+```
+
+**30. Oldest Champion**
+```dax
+Oldest Champion =
+VAR Holder =
+    TOPN ( 1, FILTER ( ALL ( fct_driver_careers ), NOT ISBLANK ( fct_driver_careers[age_last_title_days] ) ),
+        fct_driver_careers[age_last_title_days], DESC )
+RETURN
+    CONCATENATEX ( Holder, RELATED ( dim_driver[driver_name] ) & " – " & fct_driver_careers[age_last_title], ", " )
+```
+A title's age is the driver's age at that season's final race.
+
 ---
 
 ## 4. Pages
@@ -337,6 +436,10 @@ Tyrrell's navy and Minardi's black stay readable.
 - **Standings table:** `fct_driver_standings[championship_position]`,
   `dim_driver[driver_name]`, `fct_driver_standings[constructor_names]`,
   `[Championship Points]`, `[Wins]`, `[Podiums]`. Sort by position.
+  `fct_driver_standings[poles]` counts starts from grid slot 1, the same
+  definition the Records page uses, so every season since 1950 has poles
+  (qualifying data only starts in 1994). It can differ from the qualifying
+  pole when a grid penalty moved the fastest qualifier back.
 - **Points progression (line chart):** X-axis `dim_race[round]`, Y-axis
   `[Points to Date]`, Legend `dim_driver[driver_name]`.
   - Visual filter on `dim_driver[driver_name]`: **Top N = 5 by
@@ -369,22 +472,7 @@ Tyrrell's navy and Minardi's black stay readable.
   when there are penalties, and `grid_penalty_positions` shows by how much.
   Qualifying data starts in 1994.
 
-### Page 3 — The Best-Results Era
-
-The page with the story. Before 1991 only a driver's best N results counted,
-so the most points didn't always win the title.
-
-- **Slicer:** `dim_season[season]`, defaulting to **1988**.
-- **Clustered column:** `dim_driver[driver_name]` with `[Championship Points]`
-  and `[Points Scored]` side by side, filtered to championship positions 1–3.
-- **Card or table:** `[Points Dropped]` per driver.
-- **Text box:** one or two sentences. *"In 1988 Prost scored 105 points to
-  Senna's 94, but only each driver's best 11 results counted. Prost dropped 18
-  points, Senna 4, and Senna took the title 90–87."*
-- **Titles by driver (bar):** `dim_driver[driver_name]` by `[Titles]`, Top 10,
-  with the season slicer's interaction turned off for this visual.
-
-### Page 4 — Teammate Battles
+### Page 3 — Teammate Battles
 
 Your teammate is the only driver in the same car, so qualifying against them
 is the cleanest comparison of drivers there is. Data starts in 1994.
@@ -415,6 +503,92 @@ is the cleanest comparison of drivers there is. Data starts in 1994.
 - **Median gap (bar chart), optional:** `dim_driver[driver_name]` by
   `[Median Gap %]`, sorted ascending.
 
+### Page 4 — Records
+
+An all-time hub for the best drivers and the records they hold. There's no
+season slicer: everything on this page covers 1950 to today.
+
+**Career totals flatter modern drivers.** Seasons have grown from 7 or 8
+Grands Prix to 24, and a win has been worth 8 points and 25. So every total
+sits next to a rate, and the leaderboard ranks by **modern points per start**:
+every result since 1950 rescored with today's 25-18-15-12-10-8-6-4-2-1, divided
+by starts. It removes points-system changes and season length. It doesn't
+remove the car.
+
+**Setup**
+
+1. **Make the page tall.** With nothing selected, open **Format page →
+   Canvas settings**, set **Type: Custom** and **Height: 1800**. Readers
+   scroll through four sections.
+2. **Make the Minimum Starts parameter.** **Modeling → New parameter →
+   Numeric range**. Name `Minimum Starts`, minimum `1`, maximum `400`,
+   increment `1`, default `50`. Leave **Add slicer to this page** ticked. This
+   creates the `[Minimum Starts Value]` measure that measure 22 uses.
+3. Set every numeric field used below to **Don't summarize** in its visual.
+4. In the Data pane, format `fct_driver_careers[win_rate]`,
+   `[podium_rate]` and `[pole_rate]` as **Percentage** with 1 decimal place
+   (**Column tools → Format**), and `[modern_points_per_start]` as a decimal
+   number with 2.
+
+**Section 1: career leaderboard**
+
+- **Table:** `dim_driver[driver_name]` (**Driver**),
+  `fct_driver_careers[starts]`, `[titles]`, `[wins]`, `[win_rate]`
+  (**Win %**), `[podiums]`, `[podium_rate]` (**Podium %**), `[poles]`,
+  `[pole_rate]` (**Pole %**), `[modern_points_per_start]`
+  (**Modern Pts/Start**).
+- **Visual filter:** `[Meets Minimum Starts]` **is 1**.
+- **Sort** by Modern Pts/Start, descending. Readers can click any other header
+  to rank by wins, titles or a rate instead.
+- Put the **Minimum Starts** slicer next to the table.
+
+**Section 2: season records**
+
+- **Best seasons (table):** `dim_season[season]`, `dim_driver[driver_name]`,
+  `fct_driver_standings[race_wins]`, `[races_entered]`, `[Season Win Rate]`,
+  `[Season Modern Pts per Start]`. Format both measures like their career
+  versions.
+  - **Visual filter:** `fct_driver_standings[races_entered]` **is greater
+    than or equal to 5**, so a one-race season can't top the rates.
+  - **Sort** by `race_wins`, descending.
+- **Biggest title margins (table):** `dim_season[season]`,
+  `dim_driver[driver_name]` (**Champion**),
+  `fct_driver_standings[championship_points]`, `dim_season[title_margin]`
+  (**Margin**).
+  - **Visual filter:** `fct_driver_standings[is_champion]` **is True**.
+  - **Sort** by Margin, descending.
+
+**Section 3: streaks**
+
+- **Slicer:** `fct_driver_streaks[streak_type]`. **Format → Slicer settings →
+  Style: Tile**, **Single select** on, and select `win` before saving.
+- **Table:** `fct_driver_streaks[streak_rank]` (**#**),
+  `dim_driver[driver_name]`, `fct_driver_streaks[streak_length]`
+  (**Length**), `[first_race]` (**From**), `[last_race]` (**To**),
+  `[runs_to_latest_start]` (**Active**).
+  - **Visual filter:** `streak_rank` **is less than or equal to 10**. Don't use
+    a Top N filter on the driver name: a driver with two long streaks would
+    collapse into one row.
+  - **Sort** by `#`, ascending.
+- A streak runs over the driver's consecutive starts, so a race they missed
+  doesn't break it. A points finish means scoring under the rules of the time.
+
+**Section 4: age records**
+
+- **Six cards:** `[Youngest Winner]`, `[Oldest Winner]`, `[Youngest Podium]`,
+  `[Oldest Podium]`, `[Youngest Champion]`, `[Oldest Champion]`.
+- The oldest winner is Luigi Fagioli, 53 at the 1951 French Grand Prix, a win
+  he shared with Fangio after handing over his car. The source credits shared
+  wins to both drivers, as the official records do.
+
+**Definitions worth a footnote on the page**
+
+- **Poles** are starts from grid slot 1, the only definition that covers every
+  season. They match the official pole counts for the greats (Hamilton 104,
+  Schumacher 68, Senna 65, Fangio 29).
+- In nine races between 1951 and 1956 a shared car started from pole, and the
+  source can't say who started it, so each of its drivers is credited.
+
 ---
 
 ## 5. Check your numbers
@@ -429,15 +603,19 @@ visual disagrees, the measure or a relationship is wrong, not the data.
 | Page 1 standings | 2026 | Antonelli 292, Russell 211, Hamilton 191 |
 | Page 1 progression | 2021, round 21 | Verstappen **369.5**, Hamilton **369.5**: level going into the finale |
 | Page 1 progression | 2021, round 22 | Verstappen **395.5**, Hamilton **387.5** |
-| Page 3 | 1988 | Senna: championship **90**, scored **94**. Prost: championship **87**, scored **105**, dropped **18** |
-| Page 3 | 1964 | Surtees: championship **40**, scored **40**. Hill: championship **39**, scored **41** |
-| Page 3 titles | (any) | Hamilton 7, Schumacher 7, Fangio 5, Prost 4, Verstappen 4 |
-| Page 4 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.190 s**, **-0.225%** |
-| Page 4 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.540 s**, **-0.604%** |
+| Page 3 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.190 s**, **-0.225%** |
+| Page 3 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.540 s**, **-0.604%** |
+| Page 4 leaderboard | Minimum starts 50 | Top three by Modern Pts/Start: Fangio **16.80**, Hamilton **13.86**, Verstappen **13.84** |
+| Page 4 leaderboard | Minimum starts 50, sort by titles | Hamilton **7**, Schumacher **7**, Fangio **5** |
+| Page 4 best seasons | (none) | Verstappen 2023: **19** wins from **22** starts, **86.4%** |
+| Page 4 title margins | (none) | 2023 Verstappen **290**, 2013 Vettel **155**, 2022 Verstappen **146** |
+| Page 4 streaks | win | Verstappen **10**, 2023 Miami Grand Prix to 2023 Italian Grand Prix |
+| Page 4 streaks | podium | Schumacher **19**, 2001 United States Grand Prix to 2002 Japanese Grand Prix |
+| Page 4 ages | (none) | Youngest winner Verstappen **18y 228d** · oldest winner Fagioli **53y 22d** · youngest champion Vettel **23y 134d** · oldest champion Fangio **46y 76d** |
 
-The 2026 figures are as of round 14 (Spanish Grand Prix, 13 Sep) and change
-after each race, so after a newer race the 2026 rows will be ahead of this table.
-The historical rows never change.
+The 2026 figures, and career figures for drivers still racing (Hamilton's and
+Verstappen's Modern Pts/Start), are as of round 14 (Spanish Grand Prix, 13 Sep)
+and change after each race. The historical rows never change.
 
 The 2021 round-22 row is the one to watch. If Verstappen shows **388.5**, the
 progression chart is built on `fct_race_results[points]` and is missing his 7

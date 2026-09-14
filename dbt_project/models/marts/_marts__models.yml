@@ -27,6 +27,11 @@ models:
         data_tests: [not_null]
       - name: is_current_season
         data_tests: [not_null]
+      - name: title_margin
+        description: >
+          Champion's championship points minus the runner-up's, from the
+          published standings. For an unfinished season, the leader's current
+          margin.
 
   - name: dim_race
     description: >
@@ -184,9 +189,20 @@ models:
         data_tests: [not_null]
       - name: is_champion
         description: >
-          False, never null, for anyone without a classified position --
-          including Schumacher, disqualified from the 1997 championship.
+          True only for the final classification leader of a finished season.
+          False, never null, for everyone else -- including the current
+          season's leader, and Schumacher, disqualified from the 1997
+          championship.
         data_tests: [not_null]
+      - name: poles
+        description: >
+          Starts from grid slot 1. Grid data covers every season, qualifying
+          only from 1994. Can differ from the qualifying pole after a grid
+          penalty.
+      - name: modern_points
+        description: >
+          The season's race results rescored with the 25-18-15-12-10-8-6-4-2-1
+          system, for comparing seasons across eras. Not the points awarded.
       - name: points_dropped
         description: >
           championship_points minus points_scored. Zero from 1991; negative
@@ -195,6 +211,77 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [season, driver_id]
+
+  - name: fct_driver_careers
+    description: >
+      One row per driver across their career: totals, rates, an era-adjusted
+      score and age records. Totals favour modern drivers with longer seasons,
+      so each total sits next to a rate.
+    columns:
+      - name: driver_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: starts
+        description: Grands Prix started. A shared drive counts once.
+        data_tests: [not_null]
+      - name: poles
+        description: >
+          Starts from grid slot 1. Grid data covers every season, qualifying
+          only from 1994, so this is the pole count that works across history.
+      - name: titles
+        description: Drivers' championships. Only finished seasons have a champion.
+        data_tests: [not_null]
+      - name: win_rate
+        description: Wins divided by starts, as a fraction.
+      - name: modern_points_per_start
+        description: >
+          The era-adjusted score. Every result rescored with the
+          25-18-15-12-10-8-6-4-2-1 system for a classified top ten, divided by
+          starts. Removes points-system changes and season length, not the car.
+        data_tests: [not_null]
+      - name: age_first_win
+        description: Age at first win, formatted like 18y 228d. The _days columns hold the same ages for sorting.
+
+  - name: fct_driver_streaks
+    description: >
+      One row per unbroken run of wins, podiums or points finishes. Streaks
+      run over a driver's consecutive starts, not calendar races, so a missed
+      race does not break one.
+    columns:
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: streak_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [win, podium, points]
+      - name: streak_length
+        data_tests: [not_null]
+      - name: streak_rank
+        description: >
+          Rank by length within the streak type, 1 for the longest. Ties share a
+          rank. Filter on it for a top-ten table: Power BI's Top N filter would
+          merge a driver's separate streaks into one row.
+        data_tests: [not_null]
+      - name: runs_to_latest_start
+        description: >
+          True when the streak includes the driver's most recent start, so it
+          may still be growing.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [driver_id, streak_type, first_race_id]
 
   - name: fct_teammate_qualifying
     description: >

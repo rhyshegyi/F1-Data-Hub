@@ -29,6 +29,21 @@ latest as (
 
     select max(season) as current_season from races
 
+),
+
+title_margins as (
+
+    -- Champion's points minus the runner-up's, from the published standings.
+    -- Positions come from the classification, so Schumacher's 1997
+    -- disqualification leaves Frentzen as runner-up, as published. Until a
+    -- season ends this is the leader's current margin.
+    select
+        season,
+        max(case when championship_position = 1 then championship_points end)
+            - max(case when championship_position = 2 then championship_points end) as title_margin
+    from {{ ref('stg_jolpica__driver_standings') }}
+    group by season
+
 )
 
 select
@@ -45,10 +60,14 @@ select
     -- only a driver's best N results counted toward the title.
     races.season <= 1990                 as is_dropped_scores_era,
 
-    races.season = max(latest.current_season) as is_current_season
+    races.season = max(latest.current_season) as is_current_season,
+
+    max(title_margins.title_margin)      as title_margin
 
 from races
 cross join latest
+left join title_margins
+    on races.season = title_margins.season
 left join completed
     on races.season = completed.season
    and races.round = completed.round

@@ -28,7 +28,6 @@ season_stats as (
                                                                      as race_wins,
         sum(case when was_classified and finish_position <= 3 then 1 else 0 end)
                                                                      as podiums,
-        sum(case when qualifying_position = 1 then 1 else 0 end)      as poles,
         sum(case when not was_classified then 1 else 0 end)           as did_not_finish,
         avg(case when was_classified then finish_position end)        as avg_finish_position,
         avg(grid_position)                                            as avg_grid_position,
@@ -36,6 +35,28 @@ season_stats as (
 
     from {{ ref('int_results_joined_to_qualifying') }}
     group by season, driver_id
+
+),
+
+driver_race_stats as (
+
+    -- Poles and modern points use the same per-start definitions as careers
+    -- and streaks. Poles are grid slot 1 rather than qualifying P1, because
+    -- qualifying data only starts in 1994.
+    select
+        season,
+        driver_id,
+        sum(case when pole then 1 else 0 end) as poles,
+        sum(modern_points)                    as modern_points
+    from {{ ref('int_driver_race') }}
+    group by season, driver_id
+
+),
+
+seasons as (
+
+    select season, races_completed = races_scheduled as is_finished
+    from {{ ref('dim_season') }}
 
 ),
 
@@ -60,7 +81,8 @@ select
     standings.championship_position_text,
     standings.championship_points,
     standings.wins                                as championship_wins,
-    coalesce(standings.championship_position = 1, false) as is_champion,
+    -- Leading the standings isn't a title until the final race has been run.
+    coalesce(standings.championship_position = 1 and seasons.is_finished, false) as is_champion,
 
     -- As scored, races and sprints combined. Equal to championship_points from
     -- 1991 onwards; lower before that, depending on how many results were
@@ -76,7 +98,8 @@ select
     season_stats.races_entered,
     season_stats.race_wins,
     season_stats.podiums,
-    season_stats.poles,
+    coalesce(driver_race_stats.poles, 0)         as poles,
+    coalesce(driver_race_stats.modern_points, 0) as modern_points,
     season_stats.did_not_finish,
     round(season_stats.avg_finish_position, 2)     as avg_finish_position,
     round(season_stats.avg_grid_position, 2)       as avg_grid_position,
@@ -89,3 +112,8 @@ left join season_stats
 left join sprint_points
     on standings.season = sprint_points.season
    and standings.driver_id = sprint_points.driver_id
+left join driver_race_stats
+    on standings.season = driver_race_stats.season
+   and standings.driver_id = driver_race_stats.driver_id
+left join seasons
+    on standings.season = seasons.season

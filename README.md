@@ -10,9 +10,9 @@ Power BI**, scheduled daily with GitHub Actions.
 
 ![Season Overview](docs/images/season-overview.png)
 
-|                                               |                                                           |
-| --------------------------------------------- | --------------------------------------------------------- |
-| ![Race Weekend](docs/images/race-weekend.png) | ![The Best-Results Era](docs/images/best-results-era.png) |
+|                                               |                                                                  |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| ![Race Weekend](docs/images/race-weekend.png) | ![Teammate Head-to-Head](docs/images/teammate-head2head.png) |
 
 ---
 
@@ -35,7 +35,7 @@ against that, and each layer is here because the data forced it.
 
 ## What the data turned up
 
-Loading 77 seasons of results surfaced four things a single flat table would
+Loading 77 seasons of results surfaced five things a single flat table would
 have got quietly wrong. Each one is now a documented model decision and a test.
 
 **Championship points aren't points scored.** Until 1990 only a driver's
@@ -43,7 +43,7 @@ best N results counted toward the title. In 1988 Prost scored 105 points to
 Senna's 94, but after dropping his worst results he had 87 to Senna's 90, and
 Senna was champion. So the marts keep `championship_points` (as published) and
 `points_scored` (summed from results) side by side, with `points_dropped`
-between them. Page 3 of the report is built on it.
+between them.
 
 **A driver can have two results in one race.** Until the mid-1960s drivers
 could take over a teammate's car mid-race. At Monza in 1950 Ascari retired car
@@ -62,6 +62,16 @@ from the 1997 championship (`D`) and McLaren excluded from the 2007
 constructors' title (`E`). Those rows have no position, so a `not_null` test is
 the wrong check. Instead two invariants are tested: classified positions are
 unique, and unclassified entries have none.
+
+**Career totals flatter modern drivers.** Fangio raced 7 or 8 Grands Prix a
+season; Hamilton races 24. Fangio won 24 of his 51 starts and Hamilton 106 of
+394, and a win was worth 8 points then and 25 now. So career totals always
+sit next to rates, and drivers are ranked by an era-adjusted score: every
+result since 1950 rescored with today's points system, divided by starts. On
+that measure Fangio leads (16.8 points per start), with Hamilton and Verstappen
+almost level behind him. Poles come from the starting grid rather than
+qualifying, which only exists from 1994, and still match the official pole
+counts.
 
 ---
 
@@ -91,8 +101,8 @@ standings) and stores each page verbatim in a Delta table keyed
   `Retry-After` and throttles below Jolpica's rate limit. The full backfill
   (77 seasons, 585 pages, about 42,000 rows) completed without a single 429.
 
-**Transformation** (`dbt_project/`, dbt on Databricks). 7 staging models, 3
-intermediate, 8 marts (4 dimensions, 4 facts).
+**Transformation** (`dbt_project/`, dbt on Databricks). 7 staging models, 4
+intermediate, 10 marts (4 dimensions, 6 facts), and a seed of team colours.
 
 - `persist_docs` writes every model and column description into Databricks as
   a comment, so the documentation is visible in the warehouse itself.
@@ -105,8 +115,18 @@ weekly because the race calendar has no fixed rhythm.
 - A failing test fails the run.
 - Can also be run manually to force-reload a season after a post-race penalty.
 
-**Report** (`dashboard/`, Power BI Desktop). Import mode over the seven mart
-tables, 8 relationships, 13 DAX measures and three pages. The
+**Report** (`dashboard/`, Power BI Desktop). Import mode over the ten mart
+tables, with four pages:
+
+- **Season Overview:** standings, title leader and a points-to-date race.
+- **Race Weekend:** results, grid and positions gained for any race.
+- **Teammate Head-to-Head:** qualifying record and median gap to the teammate
+  since 1994, compared in the last session both drivers set a time in, with
+  cells in each team's colour.
+- **Records:** an all-time career leaderboard with rates and the era-adjusted
+  score, best seasons, title margins, streaks and age records.
+
+The
 [build guide](dashboard/README.md) covers the model, every measure and a
 table of figures to check the report against.
 
@@ -117,9 +137,9 @@ The `.pbix` is committed and the screenshots above are from it.
 
 ## Testing
 
-**123 dbt tests** run on every build: not-null, uniqueness and relationships
+**153 dbt tests** run on every build: not-null, uniqueness and relationships
 tests on every key, plus singular tests that check the marts against the
-sport's own published numbers:
+sport's own published numbers and against each other:
 
 - From 1991, points summed from results must equal the published
   championship points for every driver in every season.
@@ -128,11 +148,19 @@ sport's own published numbers:
   every season since 1950.
 - Every finished season must have a sprint result for every scheduled sprint
   weekend.
+- Career totals must match the race results they summarise, and every win,
+  podium and points finish must sit in exactly one streak that can't be
+  extended at either end.
+- A season has a champion only once its final race has run. Written for the
+  records page, this caught a real bug: the current championship leader was
+  being counted as a title winner.
 
 These are the pipeline's alarm: if Jolpica ever publishes results and
-standings that disagree, the scheduled run fails.
+standings that disagree, the scheduled run fails. Each invariant test was also
+broken on purpose, by deliberately corrupting the model, to confirm it fails
+when it should rather than passing on anything.
 
-**183 Python tests** run offline against recorded Jolpica responses. The HTTP
+**217 Python tests** run offline against recorded Jolpica responses. The HTTP
 transport, the retry sleep and the database cursor are all injected, so pagination,
 retries, watermarking and parameter binding are tested without network or
 warehouse access. One test fails any dbt description containing double quotes
@@ -194,8 +222,9 @@ dbt_project/
   models/staging/   one model per Jolpica endpoint
   models/intermediate/
   models/marts/     dim_* and fct_* tables for Power BI
-  tests/            singular tests reconciling against published standings
-  macros/           JSON schemas, lap-time parsing, race_id
+  seeds/            team colours for the report
+  tests/            singular tests: standings reconciliation, streaks, careers
+  macros/           JSON schemas, lap-time parsing, race_id, age labels
 dashboard/          Power BI report and its build guide
 tests/              offline Python tests and recorded API fixtures
 docs/               design spec
