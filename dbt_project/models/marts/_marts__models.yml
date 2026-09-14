@@ -128,6 +128,11 @@ models:
         description: >
           A classified top-three finish. Checked against classification, not
           just position, so a retirement can never count.
+      - name: is_fastest_lap
+        description: >
+          The driver set the race's fastest lap. Recorded from 2004; false
+          before that, when the source has no fastest-lap data.
+        data_tests: [not_null]
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -282,6 +287,61 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [driver_id, streak_type, first_race_id]
+
+  - name: fct_qualifying
+    description: >
+      One row per driver per qualifying session, 1994 onwards, including
+      drivers who qualified but did not start the race.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_driver')
+                field: driver_id
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_constructor')
+                field: constructor_id
+      - name: q1_time
+        description: >
+          Q1 lap as the source writes it, for example 1:29.179. Before 2006
+          qualifying had one session, and its time is stored here.
+      - name: gap_seconds
+        description: >
+          Driver's lap in the last session they set a time in, minus the
+          fastest lap in that same session. For drivers who reached Q3 this is
+          the gap to pole. Never negative. Not measured across sessions,
+          because a race-fuel Q3 (2008 and 2009) or a wet Q3 makes those
+          comparisons meaningless. In the aggregate format of early 2005 it is
+          the gap between the two-lap totals.
+      - name: final_session
+        description: >
+          The last knockout session the driver took part in: Q1, Q2 or Q3.
+          Null before 2006, when there were no knockout sessions.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Q1, Q2, Q3]
+      - name: grid_position
+        description: >
+          Starting slot from the race results. Differs from qualifying_position
+          after grid penalties; null if the driver did not start.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
 
   - name: fct_lap_positions
     description: >

@@ -29,6 +29,8 @@ select
     laps_completed,
     points,
     race_time_millis,
+    fastest_lap_time,
+    fastest_lap_number,
     fastest_lap_seconds,
 
     positions_gained,
@@ -39,6 +41,9 @@ select
     -- finishers must not hand a podium to someone who retired.
     was_classified and finish_position = 1  as is_win,
     was_classified and finish_position <= 3 as is_podium,
-    points > 0                              as scored_points
+    points > 0                              as scored_points,
+    -- Rank 1 in the source's fastest-lap ranking. Recorded from 2004, so
+    -- false rather than null before that.
+    coalesce(fastest_lap_rank = 1, false)   as is_fastest_lap
 
 from results

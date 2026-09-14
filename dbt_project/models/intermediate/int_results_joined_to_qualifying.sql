@@ -48,6 +48,9 @@ select
     results.laps_completed,
     results.status,
     results.race_time_millis,
+    results.fastest_lap_rank,
+    results.fastest_lap_number,
+    results.fastest_lap_time,
     results.fastest_lap_seconds,
 
     qualifying.qualifying_position,

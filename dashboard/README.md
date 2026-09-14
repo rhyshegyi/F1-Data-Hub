@@ -27,7 +27,7 @@ link would break when the trial ends. The skill is in building the report
      comfortably.
 4. Authenticate with **Personal Access Token** and paste the token from `.env`.
    Power BI keeps it in its own local credential store.
-5. In the Navigator, open `workspace` → `f1_marts` and tick **all twelve
+5. In the Navigator, open `workspace` → `f1_marts` and tick **all thirteen
    tables**. Nothing from `f1_raw`, `f1_staging` or `f1_intermediate`; the
    report reads the marts layer only. That rule is the whole point of the
    layering.
@@ -42,7 +42,7 @@ Give it a moment.
 ### Relationships
 
 Open **Model view**. Power BI auto-detects relationships by matching column
-names. Check that you end up with exactly these seventeen, all *one-to-many*
+names. Check that you end up with exactly these twenty, all *one-to-many*
 with *single* cross-filter direction, and delete anything else it invents:
 
 | From (one side) | To (many side) | On |
@@ -64,6 +64,9 @@ with *single* cross-filter direction, and delete anything else it invents:
 | `dim_driver` | `fct_lap_positions` | `driver_id` |
 | `dim_race` | `fct_pit_stops` | `race_id` |
 | `dim_driver` | `fct_pit_stops` | `driver_id` |
+| `dim_race` | `fct_qualifying` | `race_id` |
+| `dim_driver` | `fct_qualifying` | `driver_id` |
+| `dim_constructor` | `fct_qualifying` | `constructor_id` |
 
 ```mermaid
 erDiagram
@@ -84,6 +87,9 @@ erDiagram
     dim_driver      ||--o{ fct_lap_positions    : driver_id
     dim_race        ||--o{ fct_pit_stops        : race_id
     dim_driver      ||--o{ fct_pit_stops        : driver_id
+    dim_race        ||--o{ fct_qualifying       : race_id
+    dim_driver      ||--o{ fct_qualifying       : driver_id
+    dim_constructor ||--o{ fct_qualifying       : constructor_id
 ```
 
 `fct_driver_careers` has one row per driver, so Power BI detects the
@@ -485,6 +491,43 @@ SWITCH (
 )
 ```
 
+Measures 37–39 are for the fastest lap and qualifying table on page 2.
+
+**37. Fastest Lap**
+```dax
+Fastest Lap =
+VAR FastestRow = FILTER ( fct_race_results, fct_race_results[is_fastest_lap] = TRUE () )
+RETURN
+    SWITCH (
+        COUNTROWS ( FastestRow ) + 0,
+        1, MAXX (
+            FastestRow,
+            RELATED ( dim_driver[driver_name] ) & " – " & fct_race_results[fastest_lap_time]
+                & " (lap " & fct_race_results[fastest_lap_number] & ")"
+        ),
+        0, "Fastest laps are recorded from 2004",
+        BLANK ()
+    )
+```
+Reads like `Max Verstappen – 1:32.608 (lap 39)`. The `+ 0` matters:
+`COUNTROWS` of an empty table is blank, not 0, so without it older races would
+show nothing instead of the note.
+
+**38. Fastest Lap Highlight**
+```dax
+Fastest Lap Highlight =
+IF (
+    CALCULATE ( COUNTROWS ( fct_race_results ), fct_race_results[is_fastest_lap] = TRUE () ) > 0,
+    "#B138DD"
+)
+```
+F1's purple for the fastest lap, blank for everyone else.
+
+**39. Qualifying Data Note**
+```dax
+Qualifying Data Note = IF ( ISBLANK ( COUNTROWS ( fct_qualifying ) ), "Qualifying data starts in 1994" )
+```
+
 ---
 
 ## 4. Pages
@@ -553,6 +596,31 @@ SWITCH (
   - **Sort** by Lap, ascending, to read the race's strategy in order.
 - **Card:** `[Lap Data Note]`. It's blank for a modern race and explains an
   empty chart or table for older ones.
+- **Qualifying (table):** `fct_qualifying[qualifying_position]` (**Pos**),
+  `dim_driver[driver_name]`, `dim_constructor[constructor_name]` (**Team**),
+  `fct_qualifying[q1_time]` (**Q1**), `[q2_time]` (**Q2**), `[q3_time]`
+  (**Q3**), `[gap_seconds]` (**Gap**), `[grid_position]` (**Grid**).
+  - Numeric fields **Don't summarize**. Format Gap with 3 decimal places
+    (**Column tools → Format**).
+  - **Gap is measured within the driver's last session:** the gap to pole for
+    anyone who reached Q3, and to the fastest Q1 or Q2 lap for drivers knocked
+    out there. Laps from different sessions don't compare: in 2008 and 2009 Q3
+    was run on race fuel, and a wet Q3 is seconds slower than a dry Q1.
+  - **Sort** by Pos, ascending.
+  - **Colour the Team cell** the same way as on Teammate Battles (measures 20
+    and 21).
+  - Pos and Grid differ when a driver took a grid penalty. A blank Grid means
+    the driver qualified but didn't start.
+  - Before 2006 there was one session, and its time appears under Q1. The
+    exception is the first six races of 2005, where pole went to the lowest
+    total of a Saturday lap (Q1) and a Sunday lap (Q2), and Gap compares those
+    totals.
+- **Card:** `[Qualifying Data Note]`, blank from 1994.
+- **Fastest lap (card):** `[Fastest Lap]`.
+  - Optional: add `fct_race_results[fastest_lap_time]` (**Fastest Lap**) to the
+    result table, and colour its background with **Conditional formatting →
+    Background color → Field value → `Fastest Lap Highlight`**, so the fastest
+    lap shows in purple in the result table too.
 
 ### Page 3 — Teammate Battles
 
@@ -685,6 +753,9 @@ visual disagrees, the measure or a relationship is wrong, not the data.
 | Page 1 standings | 2026 | Antonelli 292, Russell 211, Hamilton 191 |
 | Page 1 progression | 2021, round 21 | Verstappen **369.5**, Hamilton **369.5**: level going into the finale |
 | Page 1 progression | 2021, round 22 | Verstappen **395.5**, Hamilton **387.5** |
+| Page 2 qualifying | 2024, R01 Bahrain | Pole Verstappen **1:29.179**; Leclerc P2, Gap **0.228**; Russell P3, Gap **0.306** |
+| Page 2 fastest lap | 2024, R01 Bahrain | `Max Verstappen – 1:32.608 (lap 39)` |
+| Page 2 qualifying | 2005, R01 Australia | Pole Fisichella, Gap **0.000**; Webber P3, Gap **3.536** (two-lap aggregate) |
 | Page 3 | 2024 | Russell vs Hamilton: **24** sessions, **19–5**, **-0.190 s**, **-0.225%** |
 | Page 3 | 2023 | Verstappen vs Pérez: **22** sessions, **20–2**, **-0.540 s**, **-0.604%** |
 | Page 4 leaderboard | Minimum starts 50 | Top three by Modern Pts/Start: Fangio **16.80**, Hamilton **13.86**, Verstappen **13.84** |
