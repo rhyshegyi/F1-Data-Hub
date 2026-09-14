@@ -266,13 +266,22 @@ SUM ( dim_season[races_completed] ) & " of " & SUM ( dim_season[races_scheduled]
 
 - **Slicers:** `dim_season[season]` and `dim_race[race_label]`. Filtered by
   the season slicer, it lists that season's races in round order.
-- **Result table:** `fct_race_results[finish_position_text]`,
-  `dim_driver[driver_name]`, `dim_constructor[constructor_name]`,
+- **Result table:** `fct_race_results[finish_position]`,
+  `fct_race_results[finish_position_text]`, `dim_driver[driver_name]`,
+  `dim_constructor[constructor_name]`,
   `fct_race_results[qualifying_position]`, `fct_race_results[grid_position]`,
   `fct_race_results[positions_gained]`, `fct_race_results[status]`.
-  Set each numeric column to **Don't summarize** in the visual. Power BI
-  defaults to *Sum*, which is harmless for one row per driver but quietly adds
-  together the two rows a 1950s shared drive produces.
+  - **Sort by `finish_position`** (click its header until it sorts ascending).
+    `finish_position_text` is text, so it sorts 1, 10, 11, 2... and *Sort by
+    column* can't fix it: every retirement is `R` but has its own numeric
+    position, and Sort by column needs one sort value per text value.
+    Rename `finish_position` to **Pos** and `finish_position_text` to
+    **Result** in the visual (double-click the field in the Columns well).
+  - Set each numeric column to **Don't summarize**: in the Visualizations
+    pane's Columns well, click the arrow next to the field and pick
+    *Don't summarize*. Text fields don't have the option. Power BI defaults to
+    *Sum*, which is harmless for one row per driver but quietly adds together
+    the two rows a 1950s shared drive produces.
 - **Positions gained (clustered bar):** `dim_driver[driver_name]` by
   `[Avg Positions Gained]`, sorted descending. Qualifying and grid differ
   when there are penalties, and `grid_penalty_positions` shows by how much.
