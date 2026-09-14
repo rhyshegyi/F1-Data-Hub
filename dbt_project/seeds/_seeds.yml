@@ -1,0 +1,35 @@
+version: 2
+
+seeds:
+  - name: team_colours
+    description: >
+      One colour per constructor for Power BI conditional formatting, keyed on
+      constructor_id. Covers every team since 1994, when qualifying data and
+      the Teammate Battles page begin. Each team has one colour, its
+      best-known livery, not one per season.
+    config:
+      column_types:
+        constructor_id: string
+        team_colour: string
+        text_colour: string
+    columns:
+      - name: constructor_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_constructor')
+                field: constructor_id
+      - name: team_colour
+        description: Hex colour for the team cell background, for example #E8002D.
+        data_tests: [not_null]
+      - name: text_colour
+        description: >
+          Black or white, whichever reads better on team_colour. Stored rather
+          than calculated because Power BI has no contrast function.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['#000000', '#FFFFFF']

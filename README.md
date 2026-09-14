@@ -117,7 +117,7 @@ The `.pbix` is committed and the screenshots above are from it.
 
 ## Testing
 
-**113 dbt tests** run on every build: not-null, uniqueness and relationships
+**123 dbt tests** run on every build: not-null, uniqueness and relationships
 tests on every key, plus singular tests that check the marts against the
 sport's own published numbers:
 
@@ -132,7 +132,7 @@ sport's own published numbers:
 These are the pipeline's alarm: if Jolpica ever publishes results and
 standings that disagree, the scheduled run fails.
 
-**179 Python tests** run offline against recorded Jolpica responses. The HTTP
+**183 Python tests** run offline against recorded Jolpica responses. The HTTP
 transport, the retry sleep and the database cursor are all injected, so pagination,
 retries, watermarking and parameter binding are tested without network or
 warehouse access. One test fails any dbt description containing double quotes

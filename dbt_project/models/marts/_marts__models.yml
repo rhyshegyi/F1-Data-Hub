@@ -80,6 +80,14 @@ models:
         data_tests: [unique, not_null]
       - name: constructor_name
         data_tests: [not_null]
+      - name: team_colour
+        description: >
+          Hex colour for conditional formatting, from the team_colours seed.
+          Grey for teams before 1994, which the seed does not cover.
+        data_tests: [not_null]
+      - name: text_colour
+        description: Black or white, whichever reads better on team_colour.
+        data_tests: [not_null]
 
   # --------------------------------------------------------------------- facts
 

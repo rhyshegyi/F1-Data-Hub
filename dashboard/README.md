@@ -310,6 +310,22 @@ driver was faster. Seconds read more naturally (*0.2 s a lap*), but a tenth at
 Monaco is a bigger margin than a tenth at Spa, so keep `[Median Gap %]` as the
 column to sort by.
 
+Measures 20 and 21 colour the Team cell. The colours live in
+`dim_constructor[team_colour]` and `[text_colour]`, loaded from
+`dbt_project/seeds/team_colours.csv`, one colour per team since 1994.
+
+**20. Team Colour**
+```dax
+Team Colour = SELECTEDVALUE ( dim_constructor[team_colour], "#9E9E9E" )
+```
+
+**21. Team Text Colour**
+```dax
+Team Text Colour = SELECTEDVALUE ( dim_constructor[text_colour], "#000000" )
+```
+Each team has black or white text, whichever reads better on its colour, so
+Tyrrell's navy and Minardi's black stay readable.
+
 ---
 
 ## 4. Pages
@@ -383,6 +399,16 @@ is the cleanest comparison of drivers there is. Data starts in 1994.
     gaps. That's intended: each driver gets a row.
   - A driver who changed teammate mid-season gets one row per teammate. In
     2026 Verstappen has one row against Lawson and one against Hadjar.
+  - **Colour the Team cell** (needs measures 20 and 21). If `dim_constructor`
+    doesn't show `team_colour` in the Data pane, click **Home → Refresh**
+    first.
+    1. Select the table. In the Visualizations pane's **Columns** well, click
+       the arrow next to **Team** → **Conditional formatting** →
+       **Background color**.
+    2. **Format style: Field value**. **What field should we base this on?**
+       `_Measures` → `Team Colour`. Click **OK**.
+    3. Same arrow → **Conditional formatting** → **Font color** →
+       **Field value** → `Team Text Colour` → **OK**.
   - Optional: conditional formatting on `[Median Gap %]`
     (**Format → Cell elements → Background color**), green below zero and red
     above.
