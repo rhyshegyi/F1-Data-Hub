@@ -215,8 +215,17 @@ models:
       - name: driver_id
         data_tests: [not_null]
       - name: position
-        description: Running position at the end of the lap.
-        data_tests: [not_null]
+        description: >
+          Running position at the end of the lap. Null for 16 timings in six
+          races between 2008 and 2018, where the source gives a lap time but no
+          position. Not inferred: it is usually the last car, but not always.
+          At Hungary 2009 lap 17 Alguersuari has no position and the same lap
+          time as Buemi in P16. Warns rather than fails, so the gap stays
+          visible in every build.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
       - name: lap_time_seconds
         description: Lap time in seconds, parsed from the source M:SS.mmm string.
     data_tests:

@@ -56,6 +56,10 @@ left join pit_laps
    and laps.round = pit_laps.round
    and laps.driver_id = pit_laps.driver_id
    and laps.lap = pit_laps.lap
+-- 16 timings between 2008 and 2018 have a lap time but no position in the
+-- source. Left out rather than guessed, so a chart line skips that lap instead
+-- of plotting a position nobody recorded.
+where laps.position is not null
 
 union all
 

@@ -5,12 +5,14 @@
 -- Races without lap data (before 1996, or not loaded yet) are left out, so
 -- this holds while the backfill is still running.
 --
--- Warns rather than fails: the source itself sometimes disagrees. At the 2026
--- British Grand Prix the results credit Sainz with 51 laps, but the lap data
--- has a 52nd, a 2:05 lap well off his pace, most likely a post-race
--- correction applied to one endpoint and not the other. A handful of these is
--- the source; hundreds would mean the model is wrong, and the count in every
--- build shows which.
+-- Warns rather than fails: the source itself disagrees. After the full 1996-
+-- 2026 backfill, 90 driver-races in 35 of 582 races differ, 72 of them by one
+-- or two laps (lapped-car counting, or a correction applied to one endpoint:
+-- at the 2026 British Grand Prix results give Sainz 51 laps, lap data 52).
+-- The large differences are misattributed drivers: for four 2001 races the lap
+-- data swaps Jordan teammates Trulli and Alesi, so their lap counts mirror
+-- each other exactly. A jump well past ~90 would point at the model rather
+-- than the source, and the count in every build shows it.
 
 {{ config(severity='warn') }}
 
