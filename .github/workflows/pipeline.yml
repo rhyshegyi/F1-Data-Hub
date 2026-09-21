@@ -84,11 +84,12 @@ jobs:
         env:
           RELOAD_SEASON: ${{ inputs.reload_season }}
         run: |
+          set -o pipefail
           if [ -n "$RELOAD_SEASON" ]; then
             uv run python -m ingestion --summary-json summary.json \
-              backfill --seasons "$RELOAD_SEASON" --force
+              backfill --seasons "$RELOAD_SEASON" --force 2>&1 | tee -a pipeline.log
           else
-            uv run python -m ingestion --summary-json summary.json incremental
+            uv run python -m ingestion --summary-json summary.json incremental 2>&1 | tee -a pipeline.log
           fi
           echo "loaded=$(jq .loaded summary.json)" >> "$GITHUB_OUTPUT"
 
@@ -102,8 +103,26 @@ jobs:
       - name: Build and test dbt models
         if: steps.ingest.outputs.loaded != '0' || inputs.run_dbt
         run: |
-          uv run dbt deps
-          uv run dbt build
+          set -o pipefail
+          uv run dbt deps 2>&1 | tee -a pipeline.log
+          uv run dbt build 2>&1 | tee -a pipeline.log
+
+      # Databricks Free Edition pauses a workspace when its owner hasn't used
+      # the web UI for a few days, and token-authenticated runs like this one
+      # don't count as use. The driver then reports "Cannot create the
+      # resource", which reads like a credentials or code problem. It isn't:
+      # the fix is to log in and restart workloads. Seen 19-20 Sep 2026.
+      - name: Explain a paused Databricks workspace
+        if: failure()
+        run: |
+          if [ -f pipeline.log ] && grep -q "Cannot create the resource" pipeline.log; then
+            message="Databricks paused this workspace for inactivity. Log in to the Databricks web UI, restart workloads, then re-run this workflow. Nothing is wrong with the code or credentials."
+            echo "::error title=Databricks workspace paused::$message"
+            {
+              echo "### Databricks workspace paused"
+              echo "$message"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Write run summary
         if: always()
